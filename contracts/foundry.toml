@@ -1,0 +1,15 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+# Required for test/CollateralRatioPolicyParity.t.sol, which shells out to
+# backend/scripts/collateral-ratio-cli.ts via vm.ffi to compare against the
+# real tierRatios.ts runtime output, not a hand-copied expected-value table.
+ffi = true
+
+# Lets script/DeployLocal.s.sol write deployments/local.json at the repo
+# root (a sibling of contracts/, backend/, docs/) so the backend keeper can
+# read deployed addresses without either side hardcoding them twice.
+fs_permissions = [{ access = "read-write", path = "../deployments" }]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
