@@ -2,21 +2,21 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {CollateralRatioPolicy} from "../src/CollateralRatioPolicy.sol";
-
-/// @notice Deployable harness, CollateralRatioPolicy is abstract (it
-/// inherits Ownable, whose constructor needs an initial owner) so it can't
-/// be deployed directly in a test.
-contract CollateralRatioPolicyHarness is CollateralRatioPolicy {
-    constructor(address initialOwner) Ownable(initialOwner) {}
-}
+import {CompliancePolicy} from "../src/CompliancePolicy.sol";
 
 /**
- * @notice Asserts CollateralRatioPolicy.collateralRatioBps produces the
- * EXACT SAME output as backend/src/risk/tierRatios.ts's collateralRatioBps,
- * for every (tier, subTier) combination that appears in the real sandbox
- * data (docs/TIER_DISTRIBUTION.md: tiers 0/20/50, subTiers 0/1/9/10/20/30/50/80).
+ * @notice Asserts CompliancePolicy.collateralRatioBps produces the EXACT
+ * SAME output as backend/src/risk/tierRatios.ts's collateralRatioBps, for
+ * every (tier, subTier) combination that appears in the real sandbox data
+ * (docs/TIER_DISTRIBUTION.md: tiers 0/20/50, subTiers 0/1/9/10/20/30/50/80).
+ *
+ * Formerly test/CollateralRatioPolicyParity.t.sol, against the
+ * now-deleted CollateralRatioPolicy.sol, the ratio-band table (and this
+ * parity guarantee) moved to CompliancePolicy.sol as part of consolidating
+ * every compliance parameter into one policy object (see
+ * docs/ROADMAP.md Phase 2a). CompliancePolicy is concretely deployable
+ * (unlike the old abstract CollateralRatioPolicy), so no test harness
+ * contract is needed anymore.
  *
  * Uses `vm.ffi` to shell out to the actual TS module at test time (via
  * backend/scripts/collateral-ratio-cli.ts) rather than hardcoding an
@@ -29,15 +29,17 @@ contract CollateralRatioPolicyHarness is CollateralRatioPolicy {
  * working `tsx` install in backend/node_modules, run `npm install` in
  * backend/ first if this test fails with a "No such file or directory".
  */
-contract CollateralRatioPolicyParityTest is Test {
-    CollateralRatioPolicyHarness policy;
+contract CompliancePolicyRatioParityTest is Test {
+    CompliancePolicy policy;
 
     // Real tiers/subTiers observed in docs/TIER_DISTRIBUTION.md.
     uint16[3] TIERS = [0, 20, 50];
     uint16[8] SUB_TIERS = [0, 1, 9, 10, 20, 30, 50, 80];
 
     function setUp() public {
-        policy = new CollateralRatioPolicyHarness(address(this));
+        // graceDuration/maxComplianceStaleness are irrelevant to this
+        // test, arbitrary placeholder values.
+        policy = new CompliancePolicy(address(this), 3600, 1800);
     }
 
     function _tsCollateralRatioBps(uint16 tier, uint16 subTier) internal returns (uint256) {

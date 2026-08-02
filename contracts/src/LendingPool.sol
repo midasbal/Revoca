@@ -10,7 +10,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IComplianceGate} from "./interfaces/IComplianceGate.sol";
 import {ITierOracle} from "./interfaces/ITierOracle.sol";
-import {CollateralRatioPolicy} from "./CollateralRatioPolicy.sol";
+import {ICountrySource} from "./interfaces/ICountrySource.sol";
+import {CompliancePolicy} from "./CompliancePolicy.sol";
 
 /**
  * @title LendingPool
@@ -19,7 +20,7 @@ import {CollateralRatioPolicy} from "./CollateralRatioPolicy.sol";
  * Revoca's full scope. The compliance-triggered unwind (RevocationGuardian)
  * is deliberately NOT built here; this contract's mechanics (in particular
  * `liquidate`) are kept clean and permissionless so the guardian can call
- * into them next session without needing pool changes.
+ * into them without needing pool changes.
  *
  * SIMPLIFICATIONS, DOCUMENTED (not hidden):
  *
@@ -50,15 +51,25 @@ import {CollateralRatioPolicy} from "./CollateralRatioPolicy.sol";
  *    socialize that shortfall. Real bad-debt handling is out of scope here;
  *    it's a candidate for the guardian or a future session.
  *
- * Safety: Ownable (via CollateralRatioPolicy) + Pausable + ReentrancyGuard +
- * SafeERC20 + custom errors (no string reverts). `pause()` blocks entry
- * (deposit, postCollateral, borrow) only, repay, withdraw,
- * withdrawCollateral, and liquidate remain callable while paused, so no
- * user or lender is ever trapped and the pool can still be de-risked during
- * an incident.
+ * COMPLIANCE POLICY: min-tier/subTier eligibility, country eligibility,
+ * collateral ratio bands, and borrow caps are NOT this contract's own
+ * state, they live on `policy` (CompliancePolicy), a single, shared,
+ * event-logged source of truth also read by anything else that needs to
+ * answer "what is this pool's compliance policy" (see CompliancePolicy.sol
+ * and docs/ROADMAP.md Phase 2a). This contract never duplicates a value
+ * `policy` already holds.
+ *
+ * Safety: Ownable + Pausable + ReentrancyGuard + SafeERC20 + custom errors
+ * (no string reverts). `pause()` blocks entry (deposit, postCollateral,
+ * borrow) only, repay, withdraw, withdrawCollateral, and liquidate remain
+ * callable while paused, so no user or lender is ever trapped and the pool
+ * can still be de-risked during an incident.
  */
-contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
+contract LendingPool is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
+    /// @notice 10_000 basis points = 100%. A units convention shared with CompliancePolicy, intentionally duplicated (not a configurable policy value, so it isn't subject to the "single source of truth" rule; see CompliancePolicy.sol's identical constant).
+    uint16 public constant BPS_DENOMINATOR = 10_000;
 
     // ---------------------------------------------------------------------
     // Immutables, seams, not swappable post-deployment this session (see
@@ -69,9 +80,13 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
     IERC20 public immutable asset;
     IComplianceGate public immutable complianceGate;
     ITierOracle public immutable tierOracle;
+    ICountrySource public immutable countrySource;
+    CompliancePolicy public immutable policy;
 
     // ---------------------------------------------------------------------
-    // Owner-settable parameters
+    // Owner-settable parameters (pool-economic, NOT compliance policy, see
+    // this contract's header on why these stay here rather than moving to
+    // CompliancePolicy).
     // ---------------------------------------------------------------------
 
     /// @notice Simple linear interest: basis points of PRINCIPAL accrued per second.
@@ -82,12 +97,6 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
 
     /// @notice Bonus (in bps of debt repaid) a liquidator receives on top of debt value, from the seized collateral.
     uint256 public liquidationBonusBps;
-
-    /// @notice Max principal a single borrower may have outstanding at once. `type(uint256).max` = no cap.
-    uint256 public maxBorrowPerUser;
-
-    /// @notice Max total principal outstanding across all borrowers. `type(uint256).max` = no cap.
-    uint256 public maxTotalBorrow;
 
     // ---------------------------------------------------------------------
     // Pool accounting
@@ -140,6 +149,10 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
         uint256 remainingCollateral
     );
     event ParamChanged(string name, uint256 oldValue, uint256 newValue);
+    event GuardianChanged(address indexed oldGuardian, address indexed newGuardian);
+    event CollateralAppliedToDebt(
+        address indexed borrower, uint256 amountApplied, uint256 principalPaid, uint256 interestPaid, uint256 remainingDebt
+    );
 
     // ---------------------------------------------------------------------
     // Errors
@@ -147,6 +160,9 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
 
     error ZeroAmount();
     error NotCompliant(address user);
+    error StaleCompliance(address user);
+    error TierNotEligible(address user, uint16 tier, uint16 subTier);
+    error CountryNotEligible(address user, bytes2 country);
     error InsufficientCollateralForBorrow(uint256 attemptedDebt, uint256 collateral, uint16 ratioBps);
     error ExceedsUserBorrowCap(uint256 attempted, uint256 cap);
     error ExceedsPoolBorrowCap(uint256 attempted, uint256 cap);
@@ -156,22 +172,33 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
     error WithdrawalWouldUnderCollateralize(uint256 remainingDebt, uint256 remainingCollateral, uint16 ratioBps);
     error PositionHealthy(address borrower);
     error NoDebt(address borrower);
+    error NotGuardian(address caller);
+
+    /// @notice The RevocationGuardian authorized to call `applyCollateralToDebt`. Owner-settable post-deployment since the guardian is deployed after (and needs) this pool's address.
+    address public guardian;
+
+    modifier onlyGuardian() {
+        if (msg.sender != guardian) revert NotGuardian(msg.sender);
+        _;
+    }
 
     constructor(
         IERC20 asset_,
         IComplianceGate complianceGate_,
         ITierOracle tierOracle_,
+        ICountrySource countrySource_,
+        CompliancePolicy policy_,
         address initialOwner,
         uint256 interestRateBpsPerSecond_,
         uint256 liquidationBonusBps_
-    ) CollateralRatioPolicy(initialOwner) {
+    ) Ownable(initialOwner) {
         asset = asset_;
         complianceGate = complianceGate_;
         tierOracle = tierOracle_;
+        countrySource = countrySource_;
+        policy = policy_;
         interestRateBpsPerSecond = interestRateBpsPerSecond_;
         liquidationBonusBps = liquidationBonusBps_;
-        maxBorrowPerUser = type(uint256).max;
-        maxTotalBorrow = type(uint256).max;
     }
 
     // ---------------------------------------------------------------------
@@ -180,6 +207,12 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
 
     function pause() external onlyOwner {
         _pause();
+    }
+
+    /// @notice Wires the RevocationGuardian contract authorized to call `applyCollateralToDebt`. Set once after both contracts are deployed.
+    function setGuardian(address newGuardian) external onlyOwner {
+        emit GuardianChanged(guardian, newGuardian);
+        guardian = newGuardian;
     }
 
     function unpause() external onlyOwner {
@@ -194,16 +227,6 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
     function setLiquidationBonusBps(uint256 newBonus) external onlyOwner {
         emit ParamChanged("liquidationBonusBps", liquidationBonusBps, newBonus);
         liquidationBonusBps = newBonus;
-    }
-
-    function setMaxBorrowPerUser(uint256 newCap) external onlyOwner {
-        emit ParamChanged("maxBorrowPerUser", maxBorrowPerUser, newCap);
-        maxBorrowPerUser = newCap;
-    }
-
-    function setMaxTotalBorrow(uint256 newCap) external onlyOwner {
-        emit ParamChanged("maxTotalBorrow", maxTotalBorrow, newCap);
-        maxTotalBorrow = newCap;
     }
 
     // ---------------------------------------------------------------------
@@ -277,10 +300,10 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
         emit CollateralPosted(msg.sender, amount, positions[msg.sender].collateral);
     }
 
-    /// @notice Current tier-derived ratio (bps) for `borrower`, per the live ITierOracle + this pool's CollateralRatioPolicy.
+    /// @notice Current tier-derived ratio (bps) for `borrower`, per the live ITierOracle + `policy`'s ratio bands.
     function currentRatioBps(address borrower) public view returns (uint16) {
         (uint16 tier, uint16 subTier) = tierOracle.tierOf(borrower);
-        return collateralRatioBps(tier, subTier);
+        return policy.collateralRatioBps(tier, subTier);
     }
 
     /// @notice `borrower`'s principal + interest accrued since their last accrual checkpoint, without mutating state.
@@ -292,7 +315,13 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
     function _pendingInterest(BorrowerPosition storage pos) private view returns (uint256) {
         if (pos.principal == 0) return 0;
         uint256 elapsed = block.timestamp - pos.lastAccrualTimestamp;
-        return Math.mulDiv(pos.principal * elapsed, interestRateBpsPerSecond, BPS_DENOMINATOR);
+        // `elapsed * interestRateBpsPerSecond` first (both realistically
+        // small, seconds elapsed and a bps rate, so this can't
+        // meaningfully overflow), then let mulDiv's 512-bit intermediate
+        // handle `pos.principal * (that product)` safely, rather than
+        // pre-multiplying pos.principal (potentially large) by elapsed
+        // ourselves and losing mulDiv's overflow protection entirely.
+        return Math.mulDiv(pos.principal, elapsed * interestRateBpsPerSecond, BPS_DENOMINATOR);
     }
 
     /// @dev Realizes pending interest into `accruedInterest` and resets the accrual checkpoint. Called at the start of every state-changing borrower function.
@@ -311,15 +340,26 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
     }
 
     /**
-     * @notice Borrow against posted collateral. Requires the caller to be
-     * currently compliant (live `complianceGate.isCompliant` check, never
-     * cached) and the resulting debt to stay within the tier-derived
-     * collateral ratio, the per-user cap, the per-pool cap, and available
-     * idle liquidity.
+     * @notice Borrow against posted collateral. Borrowing is risk-increasing,
+     * so it requires: the caller's compliance signal to be both FRESH
+     * (`complianceGate.isFresh`, data of unknown age is not the same as
+     * knowing they're compliant now, see IComplianceGate.sol) and currently
+     * `true`; their tier/subTier and country to satisfy `policy`'s
+     * eligibility rules; and the resulting debt to stay within the
+     * tier-derived collateral ratio, the tier's borrow cap, the pool-wide
+     * cap, and available idle liquidity.
      */
     function borrow(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert ZeroAmount();
+        if (!complianceGate.isFresh(msg.sender)) revert StaleCompliance(msg.sender);
         if (!complianceGate.isCompliant(msg.sender)) revert NotCompliant(msg.sender);
+
+        (uint16 tier, uint16 subTier) = tierOracle.tierOf(msg.sender);
+        if (!policy.isTierEligible(tier, subTier)) revert TierNotEligible(msg.sender, tier, subTier);
+
+        bytes2 country = countrySource.countryOf(msg.sender);
+        if (!policy.isCountryEligible(country)) revert CountryNotEligible(msg.sender, country);
+
         if (amount > idleLiquidity) revert InsufficientLiquidity(amount, idleLiquidity);
 
         _accrueInterest(msg.sender);
@@ -328,14 +368,16 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
         uint256 newPrincipal = pos.principal + amount;
         uint256 newDebt = newPrincipal + pos.accruedInterest;
 
-        uint16 ratioBps = currentRatioBps(msg.sender);
+        uint16 ratioBps = policy.collateralRatioBps(tier, subTier);
         if (newDebt * ratioBps > pos.collateral * BPS_DENOMINATOR) {
             revert InsufficientCollateralForBorrow(newDebt, pos.collateral, ratioBps);
         }
 
-        if (newPrincipal > maxBorrowPerUser) revert ExceedsUserBorrowCap(newPrincipal, maxBorrowPerUser);
+        uint256 userCap = policy.tierBorrowCap(tier);
+        if (newPrincipal > userCap) revert ExceedsUserBorrowCap(newPrincipal, userCap);
         uint256 newTotalPrincipal = totalPrincipalOutstanding + amount;
-        if (newTotalPrincipal > maxTotalBorrow) revert ExceedsPoolBorrowCap(newTotalPrincipal, maxTotalBorrow);
+        uint256 poolCap = policy.maxTotalBorrow();
+        if (newTotalPrincipal > poolCap) revert ExceedsPoolBorrowCap(newTotalPrincipal, poolCap);
 
         pos.principal = newPrincipal;
         totalPrincipalOutstanding = newTotalPrincipal;
@@ -343,7 +385,6 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
 
         asset.safeTransfer(msg.sender, amount);
 
-        (uint16 tier, uint16 subTier) = tierOracle.tierOf(msg.sender);
         emit Borrow(msg.sender, amount, newPrincipal, newDebt, tier, subTier, ratioBps);
     }
 
@@ -376,7 +417,20 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
         emit Repay(msg.sender, actualRepay, principalPaid, interestPaid, pos.principal + pos.accruedInterest);
     }
 
-    /// @notice Withdraw collateral, but only down to the amount still required to back current debt at the live tier-derived ratio.
+    /**
+     * @notice Withdraw collateral, but only down to the amount still
+     * required to back current debt at the live tier-derived ratio.
+     *
+     * Compliance/freshness gating applies ONLY while `debt > 0`, that's
+     * the genuinely risk-increasing case (reducing the cushion behind
+     * outstanding debt). Once debt is fully cleared, withdrawing the
+     * remaining collateral is risk-DECREASING (the borrower is just taking
+     * back their own money with zero liability to the pool) and must never
+     * be blocked by compliance or staleness, see this contract's header
+     * and RevocationGuardian.sol's fairness property: a revoked borrower
+     * must still be able to recover residual collateral once their debt is
+     * resolved.
+     */
     function withdrawCollateral(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
@@ -389,6 +443,9 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
         uint256 debt = pos.principal + pos.accruedInterest;
 
         if (debt > 0) {
+            if (!complianceGate.isFresh(msg.sender)) revert StaleCompliance(msg.sender);
+            if (!complianceGate.isCompliant(msg.sender)) revert NotCompliant(msg.sender);
+
             uint16 ratioBps = currentRatioBps(msg.sender);
             if (debt * ratioBps > remainingCollateral * BPS_DENOMINATOR) {
                 revert WithdrawalWouldUnderCollateralize(debt, remainingCollateral, ratioBps);
@@ -401,6 +458,57 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
         asset.safeTransfer(msg.sender, amount);
 
         emit CollateralWithdrawn(msg.sender, amount, remainingCollateral);
+    }
+
+    /**
+     * @notice Guardian-only: applies up to `amount` of `borrower`'s own
+     * posted collateral toward their own debt (interest first, then
+     * principal, identical ordering to `repay`), WITHOUT any external
+     * token transfer, since the collateral is already held by this
+     * contract. This is the "self-cure" step of RevocationGuardian's
+     * unwind: prefer using the borrower's own collateral to cover debt
+     * before exposing the position to permissionless liquidation.
+     *
+     * Interest is accrued up to the moment of this call via the same
+     * `_accrueInterest` path every other borrower function uses, the
+     * unwind settles interest exactly, not approximately, at the point it
+     * acts.
+     *
+     * @param amount Amount to attempt to apply; pass `type(uint256).max` to
+     * apply as much as possible. The actual amount applied is capped at
+     * both the borrower's collateral balance and their outstanding debt,
+     * and returned to the caller.
+     */
+    function applyCollateralToDebt(address borrower, uint256 amount)
+        external
+        onlyGuardian
+        nonReentrant
+        returns (uint256 applied)
+    {
+        _accrueInterest(borrower);
+        BorrowerPosition storage pos = positions[borrower];
+
+        uint256 owed = pos.principal + pos.accruedInterest;
+        uint256 maxApplicable = owed < pos.collateral ? owed : pos.collateral;
+        applied = amount > maxApplicable ? maxApplicable : amount;
+
+        if (applied == 0) {
+            emit CollateralAppliedToDebt(borrower, 0, 0, 0, owed);
+            return 0;
+        }
+
+        uint256 interestPaid = applied > pos.accruedInterest ? pos.accruedInterest : applied;
+        uint256 principalPaid = applied - interestPaid;
+
+        pos.accruedInterest -= interestPaid;
+        pos.principal -= principalPaid;
+        totalPrincipalOutstanding -= principalPaid;
+
+        pos.collateral -= applied;
+        totalCollateral -= applied;
+        idleLiquidity += applied;
+
+        emit CollateralAppliedToDebt(borrower, applied, principalPaid, interestPaid, pos.principal + pos.accruedInterest);
     }
 
     /**
@@ -422,9 +530,12 @@ contract LendingPool is CollateralRatioPolicy, Pausable, ReentrancyGuard {
         uint256 collateralWithBonus = Math.mulDiv(debt, BPS_DENOMINATOR + liquidationBonusBps, BPS_DENOMINATOR);
         uint256 collateralSeized = collateralWithBonus > pos.collateral ? pos.collateral : collateralWithBonus;
 
+        // Capture principal before clearing it, totalPrincipalOutstanding
+        // only tracks the principal portion of debt, not accrued interest.
+        uint256 principalPortion = pos.principal;
         pos.principal = 0;
         pos.accruedInterest = 0;
-        totalPrincipalOutstanding -= (pos.principal >= debt ? debt : pos.principal); // principal portion only; see note below
+        totalPrincipalOutstanding -= principalPortion;
         uint256 remainingCollateral = pos.collateral - collateralSeized;
         pos.collateral = remainingCollateral;
         totalCollateral -= collateralSeized;

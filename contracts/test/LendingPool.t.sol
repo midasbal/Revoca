@@ -9,8 +9,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {LendingPool} from "../src/LendingPool.sol";
 import {IComplianceGate} from "../src/interfaces/IComplianceGate.sol";
 import {ITierOracle} from "../src/interfaces/ITierOracle.sol";
+import {ICountrySource} from "../src/interfaces/ICountrySource.sol";
+import {CompliancePolicy} from "../src/CompliancePolicy.sol";
 import {TestComplianceGate} from "../src/test/TestComplianceGate.sol";
 import {TestTierOracle} from "../src/test/TestTierOracle.sol";
+import {TestCountrySource} from "../src/test/TestCountrySource.sol";
 import {MockERC20} from "../src/test/MockERC20.sol";
 
 contract LendingPoolTest is Test {
@@ -18,6 +21,8 @@ contract LendingPoolTest is Test {
     MockERC20 asset;
     TestComplianceGate complianceGate;
     TestTierOracle tierOracle;
+    TestCountrySource countrySource;
+    CompliancePolicy policy;
 
     address owner = address(this);
     address lender1 = address(0x1EA1);
@@ -30,16 +35,22 @@ contract LendingPoolTest is Test {
     // produce clean, easily-hand-checked numbers in tests.
     uint256 constant RATE_BPS_PER_SECOND = 1;
     uint256 constant LIQUIDATION_BONUS_BPS = 500; // 5%
+    uint256 constant GRACE_DURATION = 3600; // arbitrary, irrelevant to pool-only tests
+    uint256 constant MAX_STALENESS = 1800; // arbitrary, irrelevant to pool-only tests (uses TestComplianceGate, not the registry)
 
     function setUp() public {
         asset = new MockERC20("Mock USD", "mUSD");
         complianceGate = new TestComplianceGate();
         tierOracle = new TestTierOracle();
+        countrySource = new TestCountrySource();
+        policy = new CompliancePolicy(owner, GRACE_DURATION, MAX_STALENESS);
 
         pool = new LendingPool(
             IERC20(address(asset)),
             IComplianceGate(address(complianceGate)),
             ITierOracle(address(tierOracle)),
+            ICountrySource(address(countrySource)),
+            policy,
             owner,
             RATE_BPS_PER_SECOND,
             LIQUIDATION_BONUS_BPS
@@ -166,7 +177,7 @@ contract LendingPoolTest is Test {
         pool.postCollateral(collateral);
 
         uint16 ratio = pool.currentRatioBps(alice);
-        assertEq(ratio, pool.SAFEST_RATIO_BPS());
+        assertEq(ratio, policy.SAFEST_RATIO_BPS());
 
         uint256 maxDebt = (collateral * pool.BPS_DENOMINATOR()) / ratio;
 
@@ -434,7 +445,10 @@ contract LendingPoolTest is Test {
         complianceGate.setCompliant(alice, true);
         tierOracle.setTier(alice, 50, 80);
 
-        pool.setMaxBorrowPerUser(500e18);
+        // Borrow caps live on CompliancePolicy now (docs/ROADMAP.md Phase 2a)
+        //, setDefaultBorrowCap applies to every tier with no explicit
+        // per-tier override, equivalent to the old flat maxBorrowPerUser.
+        policy.setDefaultBorrowCap(500e18);
 
         vm.prank(alice);
         pool.postCollateral(10_000e18); // plenty of collateral, cap is the binding constraint
@@ -448,6 +462,30 @@ contract LendingPoolTest is Test {
         assertEq(pool.currentDebt(alice), 500e18);
     }
 
+    function test_TierBorrowCap_OverridesDefaultForThatTierOnly() public {
+        _seedLiquidity(100_000e18);
+        complianceGate.setCompliant(alice, true);
+        complianceGate.setCompliant(bob, true);
+        tierOracle.setTier(alice, 50, 80);
+        tierOracle.setTier(bob, 20, 0);
+
+        policy.setDefaultBorrowCap(10_000e18);
+        policy.setTierBorrowCap(50, 300e18); // tier 50 gets a tighter override
+
+        vm.prank(alice);
+        pool.postCollateral(10_000e18);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(LendingPool.ExceedsUserBorrowCap.selector, 301e18, 300e18));
+        pool.borrow(301e18);
+
+        // bob (tier 20, no override) still gets the default cap.
+        vm.prank(bob);
+        pool.postCollateral(10_000e18);
+        vm.prank(bob);
+        pool.borrow(5000e18); // well above alice's tier-50 override, fine under the default
+        assertEq(pool.currentDebt(bob), 5000e18);
+    }
+
     function test_MaxTotalBorrowCap() public {
         _seedLiquidity(100_000e18);
         complianceGate.setCompliant(alice, true);
@@ -455,7 +493,7 @@ contract LendingPoolTest is Test {
         tierOracle.setTier(alice, 50, 80);
         tierOracle.setTier(bob, 50, 80);
 
-        pool.setMaxTotalBorrow(1500e18);
+        policy.setMaxTotalBorrow(1500e18);
 
         vm.prank(alice);
         pool.postCollateral(10_000e18);
@@ -476,7 +514,7 @@ contract LendingPoolTest is Test {
     function test_OnlyOwnerCanSetCaps() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
-        pool.setMaxBorrowPerUser(1);
+        policy.setDefaultBorrowCap(1);
     }
 
     // -------------------------------------------------------------------
