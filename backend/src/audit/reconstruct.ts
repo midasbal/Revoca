@@ -38,6 +38,7 @@ import type {
   TimelineEntryType,
   UnwindRecord,
 } from "./types.js";
+import { computeBlockChunks } from "../shared/blockChunks.js";
 
 type DecodedLog = Log & { eventName: string; args: Record<string, unknown> };
 
@@ -93,15 +94,13 @@ async function fetchDecodedLogs(
   chunkBlocks: bigint,
 ): Promise<DecodedLog[]> {
   const allLogs: DecodedLog[] = [];
-  for (let chunkStart = fromBlock; chunkStart <= toBlock; chunkStart += chunkBlocks) {
-    const chunkEndCandidate = chunkStart + chunkBlocks - 1n;
-    const chunkEnd = chunkEndCandidate > toBlock ? toBlock : chunkEndCandidate;
+  for (const chunk of computeBlockChunks(fromBlock, toBlock, chunkBlocks)) {
     const logs = await publicClient.getLogs({
       address,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       events: events as any,
-      fromBlock: chunkStart,
-      toBlock: chunkEnd,
+      fromBlock: chunk.fromBlock,
+      toBlock: chunk.toBlock,
     });
     allLogs.push(...(logs as unknown as DecodedLog[]));
   }

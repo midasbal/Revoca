@@ -27,6 +27,7 @@ import { LocalApassFactSimulator } from "../src/attestor/attest.js";
 import { buildDomain } from "../src/attestor/types.js";
 import { buildAuditReport } from "../src/audit/reconstruct.js";
 import { hashReport, signReport, verifyReport } from "../src/audit/sign.js";
+import { computeBlockChunks } from "../src/shared/blockChunks.js";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CONTRACTS_DIR = resolve(REPO_ROOT, "../contracts");
@@ -322,6 +323,33 @@ describe.runIf(checkToolsAvailable())("audit report builder (anvil)", () => {
       expect(toBlock).toBeGreaterThan(5n);
 
       const defaultReport = await buildAuditReport({ publicClient, pool: deployment.pool, fromBlock: 0n, toBlock });
+
+      // Confirm this run's chain state actually exercises what the test
+      // claims: a chunkBlocks of 5 over [0, toBlock] must produce several
+      // chunks including a genuinely partial final one, AND the events
+      // that make it into the report (not just any transaction, e.g. a
+      // plain ERC20 approve doesn't affect the report at all) must be
+      // spread across more than one chunk, including the final chunk.
+      // Without this, a passing toEqual below could mean "chunking works"
+      // OR "this run happened not to exercise the interesting boundaries",
+      // which would be a false sense of coverage.
+      const chunks = computeBlockChunks(0n, toBlock, 5n);
+      expect(chunks.length).toBeGreaterThanOrEqual(3);
+      const finalChunk = chunks[chunks.length - 1]!;
+      expect(finalChunk.toBlock - finalChunk.fromBlock + 1n).toBeLessThan(5n); // genuinely partial, not coincidentally full
+
+      const relevantBlocks = new Set<bigint>();
+      for (const p of defaultReport.positions) {
+        for (const t of p.timeline) relevantBlocks.add(BigInt(t.source.blockNumber));
+      }
+      for (const h of defaultReport.policy.history) relevantBlocks.add(BigInt(h.source.blockNumber));
+      expect(relevantBlocks.size).toBeGreaterThan(0);
+
+      const chunkIndexOf = (block: bigint) => chunks.findIndex((c) => block >= c.fromBlock && block <= c.toBlock);
+      const touchedChunkIndices = new Set([...relevantBlocks].map(chunkIndexOf));
+      expect(touchedChunkIndices.size).toBeGreaterThan(1); // spread across more than one chunk, not all bunched in the first
+      expect(touchedChunkIndices.has(chunks.length - 1)).toBe(true); // and specifically including the final, partial chunk
+
       const chunkedReport = await buildAuditReport({
         publicClient,
         pool: deployment.pool,

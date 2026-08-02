@@ -33,6 +33,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { KeeperConfig } from "./config.js";
 import { requireOnChainConfig } from "./config.js";
 import type { ComplianceAttestation } from "../attestor/types.js";
+import { computeBlockChunks } from "../shared/blockChunks.js";
 
 // Phase 2b: the registry's write path is now EIP-712 signature-verified
 // attestations (see contracts/src/ComplianceRegistry.sol), the old
@@ -82,15 +83,13 @@ async function fetchLogsChunked(
   chunkBlocks: bigint,
 ): Promise<{ args: { borrower?: Address } }[]> {
   const allLogs: { args: { borrower?: Address } }[] = [];
-  for (let chunkStart = fromBlock; chunkStart <= toBlock; chunkStart += chunkBlocks) {
-    const chunkEndCandidate = chunkStart + chunkBlocks - 1n;
-    const chunkEnd = chunkEndCandidate > toBlock ? toBlock : chunkEndCandidate;
+  for (const chunk of computeBlockChunks(fromBlock, toBlock, chunkBlocks)) {
     const logs = await publicClient.getLogs({
       address,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       event: event as any,
-      fromBlock: chunkStart,
-      toBlock: chunkEnd,
+      fromBlock: chunk.fromBlock,
+      toBlock: chunk.toBlock,
     });
     allLogs.push(...(logs as unknown as { args: { borrower?: Address } }[]));
   }
