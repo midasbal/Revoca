@@ -13,7 +13,8 @@
     "probe": "tsx scripts/probe.ts",
     "tier-distribution": "tsx scripts/tier-distribution.ts",
     "status-semantics": "tsx scripts/status-semantics.ts",
-    "keeper:dry-run": "tsx scripts/keeper-dry-run.ts"
+    "keeper:dry-run": "tsx scripts/keeper-dry-run.ts",
+    "audit": "tsx src/audit/cli.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

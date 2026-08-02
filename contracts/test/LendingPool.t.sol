@@ -569,6 +569,42 @@ contract LendingPoolTest is Test {
     }
 
     // -------------------------------------------------------------------
+    // Guardian-only: applyCollateralToDebt
+    // -------------------------------------------------------------------
+
+    function test_ApplyCollateralToDebt_RevertsForNonGuardian() public {
+        vm.expectRevert(abi.encodeWithSelector(LendingPool.NotGuardian.selector, address(this)));
+        pool.applyCollateralToDebt(alice, 1e18);
+    }
+
+    /// @notice CollateralAppliedToDebt must report the resulting collateral
+    /// balance directly (not just the resulting debt), the same way every
+    /// other balance-mutating event does (Repay, CollateralWithdrawn,
+    /// Liquidate all report a resulting balance), so an off-chain audit
+    /// reconstruction never has to derive it by subtracting deltas across
+    /// event types. See docs/AUDIT_REPORT.md's event-coverage check.
+    function test_ApplyCollateralToDebt_EmitsRemainingCollateral() public {
+        _seedLiquidity(10_000e18);
+        complianceGate.setCompliant(alice, true);
+        vm.prank(alice);
+        pool.postCollateral(1000e18);
+        vm.prank(alice);
+        pool.borrow(500e18);
+
+        address guardian = address(0x6A2D1A0);
+        pool.setGuardian(guardian);
+
+        vm.expectEmit(true, false, false, true);
+        emit LendingPool.CollateralAppliedToDebt(alice, 500e18, 500e18, 0, 0, 500e18);
+        vm.prank(guardian);
+        uint256 applied = pool.applyCollateralToDebt(alice, 500e18);
+
+        assertEq(applied, 500e18);
+        (uint256 collateral,,,) = pool.positions(alice);
+        assertEq(collateral, 500e18);
+    }
+
+    // -------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------
 

@@ -151,7 +151,12 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
     event ParamChanged(string name, uint256 oldValue, uint256 newValue);
     event GuardianChanged(address indexed oldGuardian, address indexed newGuardian);
     event CollateralAppliedToDebt(
-        address indexed borrower, uint256 amountApplied, uint256 principalPaid, uint256 interestPaid, uint256 remainingDebt
+        address indexed borrower,
+        uint256 amountApplied,
+        uint256 principalPaid,
+        uint256 interestPaid,
+        uint256 remainingDebt,
+        uint256 remainingCollateral
     );
 
     // ---------------------------------------------------------------------
@@ -493,7 +498,7 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
         applied = amount > maxApplicable ? maxApplicable : amount;
 
         if (applied == 0) {
-            emit CollateralAppliedToDebt(borrower, 0, 0, 0, owed);
+            emit CollateralAppliedToDebt(borrower, 0, 0, 0, owed, pos.collateral);
             return 0;
         }
 
@@ -508,7 +513,9 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
         totalCollateral -= applied;
         idleLiquidity += applied;
 
-        emit CollateralAppliedToDebt(borrower, applied, principalPaid, interestPaid, pos.principal + pos.accruedInterest);
+        emit CollateralAppliedToDebt(
+            borrower, applied, principalPaid, interestPaid, pos.principal + pos.accruedInterest, pos.collateral
+        );
     }
 
     /**
