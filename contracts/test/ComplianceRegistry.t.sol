@@ -233,6 +233,48 @@ contract ComplianceRegistryTest is EIP712TestUtils {
         assertFalse(registry.isFresh(alice));
     }
 
+    /// @dev The boundary itself (elapsed == maxComplianceStaleness, not >) must still read fresh, isFresh()'s `<=` is inclusive, not exclusive.
+    function test_IsFresh_TrueExactlyAtStalenessBoundary() public {
+        ComplianceRegistry.ComplianceAttestation memory a = _fact(1);
+        registry.submitAttestation(a, _sign(ATTESTOR_PK, registry, a));
+
+        vm.warp(block.timestamp + MAX_STALENESS);
+        assertTrue(registry.isFresh(alice));
+    }
+
+    /// @dev A stale attestation isn't a dead end: a fresh re-attestation (higher nonce) resets isFresh() to true and overwrites the stored facts, even though isCompliant() never dipped (facts/policy separation, isCompliant doesn't fold in freshness).
+    function test_ReAttesting_AfterStalenessWindow_ResetsFreshnessAndUpdatesFacts() public {
+        ComplianceRegistry.ComplianceAttestation memory a1 = _fact(1);
+        registry.submitAttestation(a1, _sign(ATTESTOR_PK, registry, a1));
+        assertTrue(registry.isFresh(alice));
+
+        vm.warp(block.timestamp + MAX_STALENESS + 1);
+        assertFalse(registry.isFresh(alice));
+        assertTrue(registry.isCompliant(alice)); // still compliant, isCompliant doesn't fold in freshness
+
+        ComplianceRegistry.ComplianceAttestation memory a2 = _fact(2); // built at the new, later block.timestamp
+        registry.submitAttestation(a2, _sign(ATTESTOR_PK, registry, a2));
+
+        assertTrue(registry.isFresh(alice));
+        assertEq(registry.issuedAtOf(alice), a2.issuedAt);
+        assertEq(registry.lastNonce(alice), 2);
+    }
+
+    // -------------------------------------------------------------------
+    // Attestor revocation
+    // -------------------------------------------------------------------
+
+    /// @dev Revoking a PREVIOUSLY authorized attestor (not just "never authorized", see test_SubmitAttestation_RevertsForUnauthorizedAttestor) must take effect immediately: a signature that would have been valid a moment ago is rejected the instant setAttestor(attestor, false) runs.
+    function test_SubmitAttestation_RevertsAfterAttestorRevoked() public {
+        registry.setAttestor(attestor, false);
+
+        ComplianceRegistry.ComplianceAttestation memory a = _fact(1);
+        bytes memory sig = _sign(ATTESTOR_PK, registry, a);
+
+        vm.expectRevert(abi.encodeWithSelector(ComplianceRegistry.NotAuthorizedAttestor.selector, attestor));
+        registry.submitAttestation(a, sig);
+    }
+
     // -------------------------------------------------------------------
     // isCompliant, eligibility derivation matrix
     // -------------------------------------------------------------------
