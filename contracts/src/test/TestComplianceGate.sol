@@ -18,10 +18,17 @@ import {IComplianceGate} from "../interfaces/IComplianceGate.sol";
  * Default result for an address that was never explicitly set is `false`
  * (fail closed), matching the safest assumption before compliance is
  * proven, tests must opt an address into compliance explicitly.
+ *
+ * Freshness defaults to `true` (fresh) for every address, unlike compliance
+ *, this preserves the behavior of every existing LendingPool test written
+ * before staleness gating existed, none of which exercise staleness, so
+ * none of them needed to change. Tests that DO want to exercise staleness
+ * call `setStale` explicitly.
  */
 contract TestComplianceGate is IComplianceGate {
     address public immutable owner;
     mapping(address => bool) private _compliant;
+    mapping(address => bool) private _stale;
 
     error NotOwner();
 
@@ -46,8 +53,18 @@ contract TestComplianceGate is IComplianceGate {
         }
     }
 
+    /// @notice TEST ONLY. Sets whether `user`'s compliance signal should be treated as stale.
+    function setStale(address user, bool stale) external onlyOwner {
+        _stale[user] = stale;
+    }
+
     /// @inheritdoc IComplianceGate
     function isCompliant(address user) external view returns (bool) {
         return _compliant[user];
+    }
+
+    /// @inheritdoc IComplianceGate
+    function isFresh(address user) external view returns (bool) {
+        return !_stale[user];
     }
 }

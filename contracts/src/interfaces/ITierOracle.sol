@@ -13,17 +13,20 @@ pragma solidity ^0.8.24;
  * off-chain REST reads with no on-chain equivalent documented anywhere in
  * docs/cleanverse.pdf.
  *
- * Real implementation (NOT built this session): a backend attestor reads
- * `query_apass` for a specific address, singular, not `query_apass_list`;
- * see docs/OPEN_QUESTIONS.md item 7, which found `query_apass_list`'s
- * tier/subTier can be stale relative to the singular per-address lookup,
- * and reports the result on-chain via a signed attestation (mirroring the
- * attestor shape considered for Design B's compliance gate, see
- * docs/ARCHITECTURE.md and docs/THREAT_MODEL.md item 7 on attestor trust,
- * which applies equally here). Whether that attestation is pushed
- * (attestor submits a tx) or pulled (pool verifies a signature passed in by
- * the caller) is an implementation decision for that later session, not
- * fixed by this interface.
+ * ../ComplianceRegistry.sol is the current placeholder implementation: a
+ * backend keeper reads `query_apass` for a specific address, singular, not
+ * `query_apass_list`; see docs/OPEN_QUESTIONS.md item 7, which found
+ * `query_apass_list`'s tier/subTier can be stale relative to the singular
+ * per-address lookup, and writes the result on-chain via a plain
+ * keeper-gated call (`msg.sender` must be an authorized keeper address).
+ * The REAL signed-attestation version (an EIP-712 signature from a
+ * Cleanverse-controlled key, verified on-chain, mirroring the attestor
+ * shape considered for Design B's compliance gate, see
+ * docs/ARCHITECTURE.md and docs/THREAT_MODEL.md item 7 on attestor trust)
+ * is still future work, not built this session. Whether that attestation
+ * is pushed (attestor submits a tx) or pulled (pool verifies a signature
+ * passed in by the caller) is a decision for that later work, not fixed by
+ * this interface.
  *
  * uint16 is sized generously above the observed real range (tiers 0/20/50,
  * subTiers 0-80 per docs/TIER_DISTRIBUTION.md) and the documented 0-99

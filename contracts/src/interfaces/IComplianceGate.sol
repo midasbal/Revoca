@@ -32,12 +32,28 @@ pragma solidity ^0.8.24;
  * Validator's own view function; Design B reads a previously-recorded
  * attestation from storage rather than doing any off-chain work inline.
  * LendingPool must not assume anything about *how* the answer was produced,
- * only that a `true` result means "eligible right now" and that staleness
- * risk (see docs/THREAT_MODEL.md item 1, poll-latency race) is the
- * implementation's problem to manage, not the caller's.
+ * only that a `true` result means "eligible right now."
+ *
+ * `isFresh` makes the staleness risk from docs/THREAT_MODEL.md item 1
+ * (poll-latency race) an EXPLICIT, on-chain-enforced fact rather than an
+ * assumption. Design A (a synchronous on-chain read, same transaction) has
+ * no staleness at all, its `isFresh` can trivially always return `true`.
+ * Design B / ComplianceRegistry (a keeper-attested cache) is only as fresh
+ * as its last observation, bounded by a configurable max-staleness window.
+ * Callers that gate risk-INCREASING actions (e.g. LendingPool.borrow) MUST
+ * check `isFresh` in addition to `isCompliant`, a `true` compliance result
+ * from data of unknown age is not the same as knowing the user is
+ * compliant NOW. Risk-DECREASING actions (repay, liquidation, the
+ * guardian's unwind) must never gate on this at all.
  */
 interface IComplianceGate {
     /// @notice Returns true if `user` currently satisfies this pool's compliance rules.
     /// @dev Not a mutation, implementations must not change on-chain state here.
     function isCompliant(address user) external view returns (bool);
+
+    /// @notice Returns true if the compliance signal for `user` is within the allowed staleness window.
+    /// @dev Not a mutation. A `false` result means "don't trust isCompliant's
+    /// current value for a risk-increasing decision", it says nothing about
+    /// whether the underlying (possibly stale) result was true or false.
+    function isFresh(address user) external view returns (bool);
 }
