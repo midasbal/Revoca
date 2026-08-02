@@ -3,17 +3,17 @@
 docs/cleanverse.pdf
 
 # Internal planning/notes docs, kept local only. Only README.md files and
-# docs/ROADMAP.md are tracked.
+# docs/THREAT_MODEL.md, docs/ARCHITECTURE.md, docs/PROJECT.md are tracked.
 CLAUDE.md
-docs/ARCHITECTURE.md
-docs/PROJECT.md
+docs/ROADMAP.md
 docs/HACKATHON.md
 docs/BUILD_PLAN.md
 docs/SUBMISSION.md
 docs/OPEN_QUESTIONS.md
 docs/CLEANVERSE_API.md
 docs/TIER_DISTRIBUTION.md
-docs/THREAT_MODEL.md
+docs/STRATEGY.md
+docs/COMPETITORS.md
 node_modules/
 dist/
 build/
