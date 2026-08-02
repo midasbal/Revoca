@@ -41,6 +41,19 @@ import type {
 
 type DecodedLog = Log & { eventName: string; args: Record<string, unknown> };
 
+/**
+ * Default width (in blocks) of each `eth_getLogs` request. Real RPC
+ * providers commonly cap `eth_getLogs` by block range and/or response size
+ * (limits vary by provider and are not advertised consistently); a single
+ * unbounded request across a long-lived pool's full history can therefore
+ * throw, or on some providers return a silently truncated result, which
+ * would corrupt this report's completeness guarantee. Chunking is always
+ * applied, including against local anvil, a range narrower than this
+ * constant simply resolves in one chunk, identical to the old unchunked
+ * behavior.
+ */
+export const DEFAULT_LOG_CHUNK_BLOCKS = 10_000n;
+
 interface BuildReportOptions {
   publicClient: PublicClient;
   pool: Address;
@@ -49,6 +62,8 @@ interface BuildReportOptions {
   toBlock?: bigint | undefined;
   /** If set, only this borrower's position is included in `positions` (policy/aggregate sections still cover the whole pool). */
   borrower?: Address | undefined;
+  /** Width (in blocks) of each `eth_getLogs` request, see DEFAULT_LOG_CHUNK_BLOCKS. Overridable for tests that need to force multiple chunks on a short-lived local chain; real callers should leave this at the default. */
+  logChunkBlocks?: bigint | undefined;
 }
 
 function amountOf(raw: bigint, decimals: number): Amount {
@@ -64,21 +79,33 @@ function sourceRefOf(log: DecodedLog, timestamp: bigint): SourceRef {
   };
 }
 
+/**
+ * Fetches every log for `address` across [fromBlock, toBlock], paged in
+ * `chunkBlocks`-wide requests and concatenated. See DEFAULT_LOG_CHUNK_BLOCKS
+ * for why this is never a single unbounded request.
+ */
 async function fetchDecodedLogs(
   publicClient: PublicClient,
   address: Address,
   events: readonly unknown[],
   fromBlock: bigint,
   toBlock: bigint,
+  chunkBlocks: bigint,
 ): Promise<DecodedLog[]> {
-  const logs = await publicClient.getLogs({
-    address,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    events: events as any,
-    fromBlock,
-    toBlock,
-  });
-  return logs as unknown as DecodedLog[];
+  const allLogs: DecodedLog[] = [];
+  for (let chunkStart = fromBlock; chunkStart <= toBlock; chunkStart += chunkBlocks) {
+    const chunkEndCandidate = chunkStart + chunkBlocks - 1n;
+    const chunkEnd = chunkEndCandidate > toBlock ? toBlock : chunkEndCandidate;
+    const logs = await publicClient.getLogs({
+      address,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      events: events as any,
+      fromBlock: chunkStart,
+      toBlock: chunkEnd,
+    });
+    allLogs.push(...(logs as unknown as DecodedLog[]));
+  }
+  return allLogs;
 }
 
 async function fetchBlockTimestamps(publicClient: PublicClient, blockNumbers: bigint[]): Promise<Map<bigint, bigint>> {
@@ -132,6 +159,7 @@ function projectPendingInterest(principal: bigint, elapsedSeconds: bigint, curre
 export async function buildAuditReport(opts: BuildReportOptions): Promise<AuditReport> {
   const { publicClient, pool, fromBlock } = opts;
   const toBlock = opts.toBlock ?? (await publicClient.getBlockNumber());
+  const logChunkBlocks = opts.logChunkBlocks ?? DEFAULT_LOG_CHUNK_BLOCKS;
 
   const [asset, registry, policy, guardian] = await Promise.all([
     publicClient.readContract({ address: pool, abi: LENDING_POOL_READ_ABI, functionName: "asset" }),
@@ -146,10 +174,10 @@ export async function buildAuditReport(opts: BuildReportOptions): Promise<AuditR
   ]);
 
   const [poolLogs, registryLogs, policyLogs, guardianLogs] = await Promise.all([
-    fetchDecodedLogs(publicClient, pool, LENDING_POOL_EVENTS_ABI, fromBlock, toBlock),
-    fetchDecodedLogs(publicClient, registry, COMPLIANCE_REGISTRY_EVENTS_ABI, fromBlock, toBlock),
-    fetchDecodedLogs(publicClient, policy, COMPLIANCE_POLICY_EVENTS_ABI, fromBlock, toBlock),
-    fetchDecodedLogs(publicClient, guardian, REVOCATION_GUARDIAN_EVENTS_ABI, fromBlock, toBlock),
+    fetchDecodedLogs(publicClient, pool, LENDING_POOL_EVENTS_ABI, fromBlock, toBlock, logChunkBlocks),
+    fetchDecodedLogs(publicClient, registry, COMPLIANCE_REGISTRY_EVENTS_ABI, fromBlock, toBlock, logChunkBlocks),
+    fetchDecodedLogs(publicClient, policy, COMPLIANCE_POLICY_EVENTS_ABI, fromBlock, toBlock, logChunkBlocks),
+    fetchDecodedLogs(publicClient, guardian, REVOCATION_GUARDIAN_EVENTS_ABI, fromBlock, toBlock, logChunkBlocks),
   ]);
 
   const allLogs = [...poolLogs, ...registryLogs, ...policyLogs, ...guardianLogs];

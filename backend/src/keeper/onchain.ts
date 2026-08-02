@@ -61,6 +61,42 @@ const POOL_ABI = parseAbi([
   "function isHealthy(address borrower) external view returns (bool)",
 ]);
 
+/**
+ * Default width (in blocks) of each `eth_getLogs` request, see
+ * backend/src/audit/reconstruct.ts's identical constant for the full
+ * rationale: real RPC providers commonly cap `eth_getLogs` by block range
+ * and/or response size, and a single unbounded request across a long-lived
+ * pool's history can throw, or on some providers silently return a
+ * truncated result. A range narrower than this constant simply resolves in
+ * one chunk, identical to the old unchunked behavior.
+ */
+export const DEFAULT_LOG_CHUNK_BLOCKS = 10_000n;
+
+/** Fetches every log for one event, across [fromBlock, toBlock], paged in `chunkBlocks`-wide requests and concatenated. */
+async function fetchLogsChunked(
+  publicClient: PublicClient,
+  address: Address,
+  event: unknown,
+  fromBlock: bigint,
+  toBlock: bigint,
+  chunkBlocks: bigint,
+): Promise<{ args: { borrower?: Address } }[]> {
+  const allLogs: { args: { borrower?: Address } }[] = [];
+  for (let chunkStart = fromBlock; chunkStart <= toBlock; chunkStart += chunkBlocks) {
+    const chunkEndCandidate = chunkStart + chunkBlocks - 1n;
+    const chunkEnd = chunkEndCandidate > toBlock ? toBlock : chunkEndCandidate;
+    const logs = await publicClient.getLogs({
+      address,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      event: event as any,
+      fromBlock: chunkStart,
+      toBlock: chunkEnd,
+    });
+    allLogs.push(...(logs as unknown as { args: { borrower?: Address } }[]));
+  }
+  return allLogs;
+}
+
 export enum GuardianPositionState {
   HEALTHY = 0,
   FLAGGED = 1,
@@ -85,8 +121,8 @@ export interface GuardianPosition {
 
 export interface OnChainDriver {
   dryRun: boolean;
-  /** Discovers borrower addresses that have ever interacted with the pool, via CollateralPosted/Borrow event logs. */
-  discoverBorrowers(fromBlock: bigint): Promise<Address[]>;
+  /** Discovers borrower addresses that have ever interacted with the pool, via CollateralPosted/Borrow event logs. `chunkBlocks` overrides DEFAULT_LOG_CHUNK_BLOCKS, real callers should leave it at the default; it exists for tests that need to force multiple chunks on a short-lived local chain. */
+  discoverBorrowers(fromBlock: bigint, chunkBlocks?: bigint): Promise<Address[]>;
   getGuardianPosition(borrower: Address): Promise<GuardianPosition>;
   isPoolHealthy(borrower: Address): Promise<boolean>;
   currentDebt(borrower: Address): Promise<bigint>;
@@ -120,28 +156,19 @@ export function createOnChainDriver(cfg: KeeperConfig, dryRun: boolean, opts: On
       ? createWalletClient({ account, chain: opts.chain, transport: http(opts.rpcUrl) })
       : undefined;
 
-  async function discoverBorrowers(fromBlock: bigint): Promise<Address[]> {
+  async function discoverBorrowers(fromBlock: bigint, chunkBlocks: bigint = DEFAULT_LOG_CHUNK_BLOCKS): Promise<Address[]> {
     if (!cfg.poolAddress) {
       throw new Error("discoverBorrowers requires LENDING_POOL_ADDRESS, not available in this mode");
     }
+    const toBlock = await publicClient.getBlockNumber();
     const [collateralLogs, borrowLogs] = await Promise.all([
-      publicClient.getLogs({
-        address: cfg.poolAddress,
-        event: POOL_ABI[0],
-        fromBlock,
-        toBlock: "latest",
-      }),
-      publicClient.getLogs({
-        address: cfg.poolAddress,
-        event: POOL_ABI[1],
-        fromBlock,
-        toBlock: "latest",
-      }),
+      fetchLogsChunked(publicClient, cfg.poolAddress, POOL_ABI[0], fromBlock, toBlock, chunkBlocks),
+      fetchLogsChunked(publicClient, cfg.poolAddress, POOL_ABI[1], fromBlock, toBlock, chunkBlocks),
     ]);
 
     const borrowers = new Set<Address>();
     for (const log of [...collateralLogs, ...borrowLogs]) {
-      const borrower = (log as unknown as { args: { borrower: Address } }).args.borrower;
+      const borrower = log.args.borrower;
       if (borrower) borrowers.add(borrower);
     }
     return [...borrowers];

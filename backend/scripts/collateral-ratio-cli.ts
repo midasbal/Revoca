@@ -1,8 +1,8 @@
 /**
  * Thin CLI wrapper around collateralRatioBps, so the Solidity parity test
- * (contracts/test/CollateralRatioPolicyParity.t.sol) can shell out via
- * Forge's `vm.ffi` and compare the on-chain CollateralRatioPolicy's output
- * directly against this TS module's real runtime output, not a
+ * (contracts/test/CompliancePolicyRatioParity.t.sol) can shell out via
+ * Forge's `vm.ffi` and compare the on-chain CompliancePolicy's ratio-band
+ * output directly against this TS module's real runtime output, not a
  * hand-copied "expected value" table that could itself drift from either
  * source of truth.
  *

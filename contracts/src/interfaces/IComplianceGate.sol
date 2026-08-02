@@ -21,11 +21,11 @@ pragma solidity ^0.8.24;
  *     Validator contract address + ABI for Monad testnet.
  *
  *   Design B, AttestorComplianceGate (fallback):
- *     A backend keeper calls `validator/verify` off-chain and submits a
- *     signed, time-boxed attestation that this contract verifies (e.g.
- *     EIP-712 signature from a designated attestor key) before recording
+ *     A backend attestor calls `validator/verify`/`query_apass` off-chain
+ *     and signs a time-boxed attestation (EIP-712, from a designated
+ *     attestor key) that this contract verifies before recording
  *     `isCompliant` as true for a short window. Introduces an off-chain
- *     trust dependency, see docs/THREAT_MODEL.md item 7 (attestor trust)
+ *     trust dependency, see docs/THREAT_MODEL.md item 9 (attestor trust)
  *     before implementing this path.
  *
  * `isCompliant` is a `view` function in both designs, Design A calls the
@@ -38,7 +38,7 @@ pragma solidity ^0.8.24;
  * (poll-latency race) an EXPLICIT, on-chain-enforced fact rather than an
  * assumption. Design A (a synchronous on-chain read, same transaction) has
  * no staleness at all, its `isFresh` can trivially always return `true`.
- * Design B / ComplianceRegistry (a keeper-attested cache) is only as fresh
+ * Design B / ComplianceRegistry (an attestor-attested cache) is only as fresh
  * as its last observation, bounded by a configurable max-staleness window.
  * Callers that gate risk-INCREASING actions (e.g. LendingPool.borrow) MUST
  * check `isFresh` in addition to `isCompliant`, a `true` compliance result

@@ -40,7 +40,7 @@ function reasonName(reason: EligibilityReason): string {
 
 function describeIntendedActions(c: BorrowerClassification): string[] {
   const actions: string[] = [
-    `observeCompliance(${c.address}, compliant=${c.compliant}, tier=${c.tier ?? "null"}, subTier=${c.subTier ?? "null"}, reason=${reasonName(c.reason)})`,
+    `submitAttestation(${c.address}, tier=${c.tier ?? "null"}, subTier=${c.subTier ?? "null"}, apassStatus=${c.status ?? "null"})  // facts only; on-chain eligibility (compliant=${c.compliant}, reason=${reasonName(c.reason)}) is derived from these facts + CompliancePolicy, never attested directly`,
   ];
   // Simulated decision assuming HEALTHY starting state (see header), this
   // is the ONE non-live assumption in this script.

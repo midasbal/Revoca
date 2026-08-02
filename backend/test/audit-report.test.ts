@@ -305,4 +305,60 @@ describe.runIf(checkToolsAvailable())("audit report builder (anvil)", () => {
     },
     120_000,
   );
+
+  it(
+    "chunked getLogs (forced small chunk size) reconstructs identically to the default chunk size",
+    async () => {
+      // Reuses the same anvil deployment and the chain state the prior
+      // test already drove (many transactions across many blocks), so
+      // [0, toBlock] here spans well more than 5 blocks, a chunkBlocks of
+      // 5 therefore forces multiple eth_getLogs requests per contract, not
+      // just one. Proves chunking doesn't drop or duplicate any logs: the
+      // reconstructed report must be identical to the unchunked-equivalent
+      // (default DEFAULT_LOG_CHUNK_BLOCKS, wide enough here to resolve in
+      // one request) result, byte for byte.
+      const publicClient = createPublicClient({ transport: http(RPC_URL), cacheTime: 0 });
+      const toBlock = await publicClient.getBlockNumber();
+      expect(toBlock).toBeGreaterThan(5n);
+
+      const defaultReport = await buildAuditReport({ publicClient, pool: deployment.pool, fromBlock: 0n, toBlock });
+      const chunkedReport = await buildAuditReport({
+        publicClient,
+        pool: deployment.pool,
+        fromBlock: 0n,
+        toBlock,
+        logChunkBlocks: 5n,
+      });
+
+      expect(chunkedReport.crossCheckOk).toBe(true);
+      expect(chunkedReport).toEqual(defaultReport);
+
+      // Same proof for the keeper's discoverBorrowers: a forced small
+      // chunkBlocks must still surface every borrower that ever posted
+      // collateral or borrowed, matching the unchunked (default) result.
+      const keeperConfig: KeeperConfig = {
+        poolMinTier: 20,
+        pollIntervalMs: 0,
+        chain: "local-simulation",
+        registryAddress: deployment.registry,
+        guardianAddress: deployment.guardian,
+        poolAddress: deployment.pool,
+        keeperPrivateKey: undefined,
+      };
+      const onChain = createOnChainDriver(keeperConfig, true, { rpcUrl: RPC_URL, chain: foundry });
+
+      const [defaultBorrowers, chunkedBorrowers] = await Promise.all([
+        onChain.discoverBorrowers(0n),
+        onChain.discoverBorrowers(0n, 5n),
+      ]);
+
+      const sortedDefault = [...defaultBorrowers].sort();
+      const sortedChunked = [...chunkedBorrowers].sort();
+      expect(sortedChunked).toEqual(sortedDefault);
+      expect(sortedChunked).toEqual(
+        expect.arrayContaining([deployment.borrower1, deployment.borrower2, deployment.borrower3]),
+      );
+    },
+    60_000,
+  );
 });
