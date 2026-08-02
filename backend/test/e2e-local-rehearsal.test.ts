@@ -117,7 +117,6 @@ interface CapturedEvent {
 }
 
 let anvilProcess: ChildProcess | undefined;
-let anvilAvailable = true;
 let deployment: Deployment;
 
 async function waitForRpc(url: string, timeoutMs: number): Promise<void> {
@@ -151,9 +150,6 @@ function checkToolsAvailable(): boolean {
 describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () => {
   beforeAll(async () => {
     anvilProcess = spawn("anvil", ["--port", String(RPC_PORT)], { stdio: "ignore" });
-    anvilProcess.on("error", () => {
-      anvilAvailable = false;
-    });
 
     await waitForRpc(RPC_URL, 15_000);
 

@@ -37,7 +37,6 @@ import type {
   TimelineEntry,
   TimelineEntryType,
   UnwindRecord,
-  UnwindStep,
 } from "./types.js";
 
 type DecodedLog = Log & { eventName: string; args: Record<string, unknown> };

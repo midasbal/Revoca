@@ -6,10 +6,10 @@
  * docs/OPEN_QUESTIONS.md item 7's finding that the list endpoint can serve
  * stale/partial tier and expiration data relative to the singular
  * per-address lookup, and never mock data. The LOCAL REHEARSAL path
- * (`localSimulator.ts`'s data source) feeds the exact same shape from an
- * in-process simulator instead, so the end-to-end rehearsal can
- * deterministically flip a borrower frozen/unfrozen without touching the
- * network at all. `determineEligibility` (eligibility.ts), the actual
+ * (`attestor/attest.ts`'s `LocalApassFactSimulator`) feeds the exact same
+ * shape from an in-process simulator instead, so the end-to-end rehearsal
+ * can deterministically flip a borrower frozen/unfrozen without touching
+ * the network at all. `determineEligibility` (eligibility.ts), the actual
  * decision logic, is identical either way; only where the raw fields come
  * from differs.
  */

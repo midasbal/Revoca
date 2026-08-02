@@ -1,7 +1,7 @@
 /**
  * The signing half of Design B: reads a borrower's current A-Pass facts
  * (sandbox or local, same data-source split as
- * backend/src/keeper/cleanverseSource.ts / localSimulator.ts) and produces
+ * backend/src/keeper/cleanverseSource.ts) and produces
  * a signed EIP-712 ComplianceAttestation. Does NOT decide eligibility
  * (that's ComplianceRegistry.sol, on-chain, live) and does NOT submit
  * anything anywhere, see relay.ts for the on-chain write.
@@ -69,11 +69,12 @@ export function cleanverseFactSource(client: CleanverseClient, chain: string): A
 }
 
 /**
- * LOCAL SIMULATION ONLY, not a real Cleanverse data source. Mirrors
- * keeper/localSimulator.ts's LocalApassSimulator exactly, extended with
- * `countries`, for local-anvil rehearsals of the attestor path without any
- * network dependency. Never used for anything that touches real funds or
- * the real sandbox, see CLAUDE.md's "no mock data for compliance" rule.
+ * LOCAL SIMULATION ONLY, not a real Cleanverse data source. The single
+ * in-process, script-controlled stand-in for "Cleanverse changed this
+ * borrower's A-Pass state," for local-anvil rehearsals of the attestor path
+ * without any network dependency. Never used for anything that touches real
+ * funds or the real sandbox, see CLAUDE.md's "no mock data for compliance"
+ * rule.
  */
 export class LocalApassFactSimulator {
   private readonly records = new Map<string, RawApassFactFields>();

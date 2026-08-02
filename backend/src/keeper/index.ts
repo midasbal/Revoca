@@ -6,7 +6,6 @@ export {
   type BorrowerClassification,
 } from "./classify.js";
 export { cleanverseDataSource } from "./cleanverseSource.js";
-export { LocalApassSimulator } from "./localSimulator.js";
 export { loadKeeperConfig, requireOnChainConfig, type KeeperConfig } from "./config.js";
 export {
   createOnChainDriver,
