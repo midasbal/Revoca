@@ -7,7 +7,10 @@ import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IComplianceGate} from "../src/interfaces/IComplianceGate.sol";
 import {ITierOracle} from "../src/interfaces/ITierOracle.sol";
+import {ICountrySource} from "../src/interfaces/ICountrySource.sol";
 import {MockERC20} from "../src/test/MockERC20.sol";
+import {TestCountrySource} from "../src/test/TestCountrySource.sol";
+import {CompliancePolicy} from "../src/CompliancePolicy.sol";
 import {ComplianceRegistry} from "../src/ComplianceRegistry.sol";
 import {LendingPool} from "../src/LendingPool.sol";
 import {RevocationGuardian} from "../src/RevocationGuardian.sol";
@@ -21,18 +24,30 @@ import {RevocationGuardian} from "../src/RevocationGuardian.sol";
  * mnemonic, printed by every `anvil` invocation, holding no real value) as
  * the deployer/lender/borrower/keeper roles, so the rehearsal is fully
  * deterministic and reproducible without any .env wiring beyond
- * LOCAL_KEEPER_PRIVATE_KEY (which the backend keeper uses to SIGN, this
- * script just needs to know the matching ADDRESS to authorize as a keeper
- * on the registry).
+ * ATTESTOR_PRIVATE_KEY (which the backend attestor service uses to SIGN,
+ * this script just needs to know the matching ADDRESS to authorize via
+ * `setAttestor` on the registry).
  *
  * Compliance source for this rehearsal: ComplianceRegistry, wired as BOTH
  * LendingPool's `complianceGate` and `tierOracle` (it implements both
- * interfaces, see ComplianceRegistry.sol's header). This is Design B's
- * placeholder, not TestComplianceGate/TestTierOracle, those remain
- * isolated-unit-test-only doubles (see contracts/test/), not part of this
- * wired end-to-end deployment, since the whole point here is to prove the
- * keeper's real on-chain WRITE path against a real keeper-gated registry,
- * which the Test doubles have no equivalent of.
+ * interfaces, see ComplianceRegistry.sol's header). This is Design B's real
+ * implementation (Phase 2b, docs/ROADMAP.md), not TestComplianceGate/
+ * TestTierOracle, those remain isolated-unit-test-only doubles (see
+ * contracts/test/), not part of this wired end-to-end deployment, since the
+ * whole point here is to prove the EIP-712 attestation WRITE path against a
+ * real signature-gated registry, which the Test doubles have no equivalent
+ * of. Seeding uses this same script's ATTESTOR_PK to sign+submit real
+ * ComplianceAttestations via `vm.sign`, NOT a live Monad relay (that's
+ * Phase 3); everything here runs against local anvil only.
+ *
+ * CompliancePolicy (docs/ROADMAP.md Phase 2a) is deployed first and wired
+ * into both the registry (staleness tolerance) and the pool (eligibility
+ * rules, ratio bands, borrow caps), the single source of truth every
+ * other piece reads from. Country eligibility uses TestCountrySource
+ * (seam-with-test-double, per CompliancePolicy.sol's header, no real
+ * Cleanverse-backed country source exists yet); the default policy has an
+ * empty country rule, so this doesn't change the rehearsal's existing
+ * behavior unless the script explicitly configures a country restriction.
  *
  * Run with (from contracts/):
  *   forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
@@ -43,7 +58,11 @@ contract DeployLocal is Script {
     uint256 constant DEPLOYER_PK = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
     uint256 constant LENDER_PK = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
     uint256 constant BORROWER1_PK = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
-    uint256 constant KEEPER_PK = 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
+    // Renamed from KEEPER_PK (Phase 2a/pre-2b): this anvil account now signs
+    // ComplianceAttestations as the registry's authorized attestor, per
+    // Phase 2b's Design-B rework, it is no longer a "keeper" permission at
+    // all (flag/reinstate/startUnwind/completeUnwind are permissionless).
+    uint256 constant ATTESTOR_PK = 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
     uint256 constant BORROWER2_PK = 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a;
     uint256 constant LIQUIDATOR_PK = 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba;
     uint256 constant BORROWER3_PK = 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e;
@@ -78,11 +97,13 @@ contract DeployLocal is Script {
 
     // Grouped into a struct (rather than many run()-local variables) to
     // avoid a "stack too deep" compile error, LendingPool's constructor
-    // alone now takes several args, and Solidity's legacy codegen has a
-    // limited number of simultaneously-reachable stack slots.
+    // alone now takes 8 args, and Solidity's legacy codegen has a limited
+    // number of simultaneously-reachable stack slots.
     struct Deployed {
         MockERC20 asset;
+        CompliancePolicy policy;
         ComplianceRegistry registry;
+        TestCountrySource countrySource;
         LendingPool pool;
         RevocationGuardian guardian;
     }
@@ -92,7 +113,7 @@ contract DeployLocal is Script {
 
         vm.startBroadcast(DEPLOYER_PK);
         Deployed memory d = _deployCore(deployer);
-        _setGuardianAndKeepers(d, deployer);
+        _setGuardianAndAttestor(d, deployer);
         _fundActors(d.asset);
         vm.stopBroadcast();
 
@@ -101,7 +122,7 @@ contract DeployLocal is Script {
         d.pool.deposit(500_000e18);
         vm.stopBroadcast();
 
-        _seedObservations(d);
+        _seedAttestations(d);
         _seedBorrower(d, BORROWER1_PK, SEED_COLLATERAL, SEED_BORROW);
         _seedBorrower(d, BORROWER2_PK, SEED_COLLATERAL, SEED_BORROW);
         _seedBorrower(d, BORROWER3_PK, BORROWER3_COLLATERAL, BORROWER3_BORROW);
@@ -115,11 +136,15 @@ contract DeployLocal is Script {
 
     function _deployCore(address deployer) internal returns (Deployed memory d) {
         d.asset = new MockERC20("Revoca Rehearsal USD", "rrUSD");
-        d.registry = new ComplianceRegistry(deployer, MAX_COMPLIANCE_STALENESS);
+        d.policy = new CompliancePolicy(deployer, GRACE_PERIOD, MAX_COMPLIANCE_STALENESS);
+        d.registry = new ComplianceRegistry(deployer, d.policy);
+        d.countrySource = new TestCountrySource();
         d.pool = new LendingPool(
             IERC20(address(d.asset)),
             IComplianceGate(address(d.registry)),
             ITierOracle(address(d.registry)),
+            ICountrySource(address(d.countrySource)),
+            d.policy,
             deployer,
             INTEREST_RATE_BPS_PER_SECOND,
             LIQUIDATION_BONUS_BPS
@@ -127,15 +152,17 @@ contract DeployLocal is Script {
         d.guardian = new RevocationGuardian(d.registry, d.pool, deployer);
     }
 
-    function _setGuardianAndKeepers(Deployed memory d, address deployer) internal {
+    function _setGuardianAndAttestor(Deployed memory d, address deployer) internal {
         d.pool.setGuardian(address(d.guardian));
-        // The real keeper (backend, signing with LOCAL_KEEPER_PRIVATE_KEY)
-        // is the authorized writer. The deployer is ALSO authorized here
-        // purely so this script can seed the initial compliant observation
-        // below without needing the keeper's key inside a deploy script,
-        // separates "infra deployment" from "ongoing keeper operation."
-        d.registry.setKeeper(vm.addr(KEEPER_PK), true);
-        d.registry.setKeeper(deployer, true);
+        // The real attestation service (backend, signing with
+        // ATTESTOR_PRIVATE_KEY) is the authorized signer going forward.
+        // ATTESTOR_PK is also what THIS script uses to sign the seed
+        // attestations below (see `_seedAttestations`), so only one
+        // authorization is actually required, `deployer` is not authorized,
+        // unlike the old keeper-gated design, since attestations are signed
+        // off-chain and relayed permissionlessly (trust is in the signature,
+        // not the submitting/authorizing address).
+        d.registry.setAttestor(vm.addr(ATTESTOR_PK), true);
     }
 
     function _fundActors(MockERC20 asset) internal {
@@ -146,19 +173,68 @@ contract DeployLocal is Script {
         asset.mint(vm.addr(LIQUIDATOR_PK), 10_000e18);
     }
 
-    // Seed all three borrowers with a compliant + fresh observation.
+    /// @dev Builds an EIP-712 struct hash for `a` using the DEPLOYED
+    /// registry's own typehash, mirrors contracts/test/helpers/
+    /// EIP712TestUtils.sol's `_structHash`, duplicated here rather than
+    /// imported since scripts (forge-std Script) and tests (forge-std Test)
+    /// are separate base contracts.
+    function _structHash(ComplianceRegistry registry, ComplianceRegistry.ComplianceAttestation memory a)
+        internal
+        view
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encode(
+                registry.COMPLIANCE_ATTESTATION_TYPEHASH(),
+                a.user,
+                a.tier,
+                a.subTier,
+                a.country,
+                a.apassStatus,
+                a.expiry,
+                a.issuedAt,
+                a.nonce
+            )
+        );
+    }
+
+    function _signAttestation(ComplianceRegistry registry, ComplianceRegistry.ComplianceAttestation memory a)
+        internal
+        returns (bytes memory signature)
+    {
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", registry.domainSeparator(), _structHash(registry, a)));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTOR_PK, digest);
+        signature = abi.encodePacked(r, s, v);
+    }
+
+    // Seed all three borrowers with a compliant, freshly-signed attestation.
     // borrower1/borrower2 share an identical under-collateralized setup
     // (debt > collateral at the 80% ratio), Branch A (reinstatement) and
     // Branch B (unwind, self-cure insufficient) start identically and
     // diverge later based on what the keeper does after each is frozen.
     // borrower3 gets generous collateral instead, for the
     // self-cure-sufficient unwind variant, see
-    // backend/test/e2e-local-rehearsal.test.ts.
-    function _seedObservations(Deployed memory d) internal {
+    // backend/test/e2e-local-rehearsal.test.ts. Any address may relay a
+    // valid attestation, so these are broadcast from DEPLOYER_PK purely as
+    // the transaction sender, the trust is entirely in the ATTESTOR_PK
+    // signature over each ComplianceAttestation.
+    function _seedAttestations(Deployed memory d) internal {
+        address[3] memory borrowers = [vm.addr(BORROWER1_PK), vm.addr(BORROWER2_PK), vm.addr(BORROWER3_PK)];
+
         vm.startBroadcast(DEPLOYER_PK);
-        d.registry.observeCompliance(vm.addr(BORROWER1_PK), true, SEED_TIER, SEED_SUB_TIER, ComplianceRegistry.Reason.NONE);
-        d.registry.observeCompliance(vm.addr(BORROWER2_PK), true, SEED_TIER, SEED_SUB_TIER, ComplianceRegistry.Reason.NONE);
-        d.registry.observeCompliance(vm.addr(BORROWER3_PK), true, SEED_TIER, SEED_SUB_TIER, ComplianceRegistry.Reason.NONE);
+        for (uint256 i = 0; i < borrowers.length; i++) {
+            ComplianceRegistry.ComplianceAttestation memory a = ComplianceRegistry.ComplianceAttestation({
+                user: borrowers[i],
+                tier: SEED_TIER,
+                subTier: SEED_SUB_TIER,
+                country: bytes2("US"),
+                apassStatus: d.registry.APASS_STATUS_ACTIVE(),
+                expiry: block.timestamp + 365 days,
+                issuedAt: block.timestamp,
+                nonce: d.registry.lastNonce(borrowers[i]) + 1
+            });
+            d.registry.submitAttestation(a, _signAttestation(d.registry, a));
+        }
         vm.stopBroadcast();
     }
 
@@ -174,6 +250,7 @@ contract DeployLocal is Script {
 
     function _logAndWrite(Deployed memory d) internal {
         console.log("asset:     ", address(d.asset));
+        console.log("policy:    ", address(d.policy));
         console.log("registry:  ", address(d.registry));
         console.log("pool:      ", address(d.pool));
         console.log("guardian:  ", address(d.guardian));
@@ -182,11 +259,12 @@ contract DeployLocal is Script {
         console.log("borrower1: ", vm.addr(BORROWER1_PK));
         console.log("borrower2: ", vm.addr(BORROWER2_PK));
         console.log("borrower3: ", vm.addr(BORROWER3_PK));
-        console.log("keeper:    ", vm.addr(KEEPER_PK));
+        console.log("attestor:  ", vm.addr(ATTESTOR_PK));
         console.log("liquidator:", vm.addr(LIQUIDATOR_PK));
 
         string memory json = "deployment";
         vm.serializeAddress(json, "asset", address(d.asset));
+        vm.serializeAddress(json, "policy", address(d.policy));
         vm.serializeAddress(json, "registry", address(d.registry));
         vm.serializeAddress(json, "pool", address(d.pool));
         vm.serializeAddress(json, "guardian", address(d.guardian));
@@ -195,7 +273,7 @@ contract DeployLocal is Script {
         vm.serializeAddress(json, "borrower1", vm.addr(BORROWER1_PK));
         vm.serializeAddress(json, "borrower2", vm.addr(BORROWER2_PK));
         vm.serializeAddress(json, "borrower3", vm.addr(BORROWER3_PK));
-        vm.serializeAddress(json, "keeper", vm.addr(KEEPER_PK));
+        vm.serializeAddress(json, "attestor", vm.addr(ATTESTOR_PK));
         string memory finalJson = vm.serializeAddress(json, "liquidator", vm.addr(LIQUIDATOR_PK));
 
         vm.writeJson(finalJson, "../deployments/local.json");

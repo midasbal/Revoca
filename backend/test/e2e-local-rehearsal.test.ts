@@ -1,13 +1,14 @@
 /**
  * The dress rehearsal: proves Revoca's full loop closes on a real (local)
- * chain, deployed contracts, a real keeper writing real transactions, a
- * position actually unwinding, end to end. No Design A/B dependency:
- * compliance signal comes from ComplianceRegistry (the keeper-attested
- * placeholder built for Part 1 of the RevocationGuardian session), fed by
- * LocalApassSimulator, a LOCAL SIMULATION ONLY stand-in for "Cleanverse
- * changed this borrower's A-Pass state" (see localSimulator.ts's header).
- * The real sandbox classification path (cleanverseSource.ts,
- * keeper-dry-run.integration.test.ts) is untouched by anything in this file.
+ * chain, deployed contracts, a real keeper signing+relaying real EIP-712
+ * attestations, a position actually unwinding, end to end. Compliance
+ * signal comes from ComplianceRegistry's real Design-B attestation path
+ * (Phase 2b, see contracts/src/ComplianceRegistry.sol's header), fed by
+ * LocalApassFactSimulator, a LOCAL SIMULATION ONLY stand-in for "Cleanverse
+ * changed this borrower's A-Pass state" (see attestor/attest.ts's header).
+ * The real sandbox classification/attestation path (cleanverseSource.ts /
+ * cleanverseFactSource, keeper-dry-run.integration.test.ts) is untouched by
+ * anything in this file.
  *
  * This test:
  *   1. Spawns a real `anvil` instance.
@@ -53,10 +54,11 @@ import { foundry } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { createOnChainDriver, GuardianPositionState } from "../src/keeper/onchain.js";
-import { LocalApassSimulator } from "../src/keeper/localSimulator.js";
 import { pollBorrower } from "../src/keeper/poller.js";
 import { EligibilityReason } from "../src/keeper/eligibility.js";
 import type { KeeperConfig } from "../src/keeper/config.js";
+import { LocalApassFactSimulator } from "../src/attestor/attest.js";
+import { buildDomain } from "../src/attestor/types.js";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const CONTRACTS_DIR = resolve(REPO_ROOT, "contracts");
@@ -66,8 +68,13 @@ const RPC_URL = `http://127.0.0.1:${RPC_PORT}`;
 
 // Anvil's public, well-known default dev-account keys (mnemonic
 // "test test test ... junk", printed by every `anvil` invocation), hold
-// no real value. Matches contracts/script/DeployLocal.s.sol exactly.
-const KEEPER_PK_FALLBACK = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6" as const;
+// no real value. Matches contracts/script/DeployLocal.s.sol exactly. This
+// same account plays BOTH the attestor (EIP-712 signer, authorized via
+// DeployLocal.s.sol's `setAttestor`) and the keeper (tx relayer, since
+// `submitAttestation` is permissionless, see onchain.ts's header) roles in
+// this rehearsal. A real deployment would use two separate keys, see
+// docs/THREAT_MODEL.md's key-separation guidance.
+const ATTESTOR_PK_FALLBACK = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6" as const;
 const LIQUIDATOR_PK = "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba" as const;
 
 const SEED_TIER = 50;
@@ -81,7 +88,7 @@ const LIQUIDATOR_POOL_ABI = parseAbi([
 ]);
 
 const EVENT_ABI = parseAbi([
-  "event ComplianceObserved(address indexed user, bool compliant, uint16 tier, uint16 subTier, uint256 timestamp, uint8 reason)",
+  "event ComplianceAttested(address indexed user, uint16 tier, uint16 subTier, bytes2 country, uint8 apassStatus, uint256 expiry, uint256 issuedAt, uint256 nonce, address indexed attestor)",
   "event PositionFlagged(address indexed borrower, uint8 reason, uint256 graceEndsAt)",
   "event PositionReinstated(address indexed borrower)",
   "event UnwindStarted(address indexed borrower, uint256 debtAtStart, uint256 collateralAtStart)",
@@ -100,7 +107,7 @@ interface Deployment {
   borrower1: Address;
   borrower2: Address;
   borrower3: Address;
-  keeper: Address;
+  attestor: Address;
   liquidator: Address;
 }
 
@@ -179,7 +186,8 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
         transport: http(RPC_URL),
       });
 
-      const keeperPk = (process.env["LOCAL_KEEPER_PRIVATE_KEY"] || KEEPER_PK_FALLBACK) as `0x${string}`;
+      const attestorPk = (process.env["LOCAL_KEEPER_PRIVATE_KEY"] || ATTESTOR_PK_FALLBACK) as `0x${string}`;
+      const attestorAccount = privateKeyToAccount(attestorPk);
 
       const keeperConfig: KeeperConfig = {
         poolMinTier: 20,
@@ -188,21 +196,29 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
         registryAddress: deployment.registry,
         guardianAddress: deployment.guardian,
         poolAddress: deployment.pool,
-        keeperPrivateKey: keeperPk,
+        keeperPrivateKey: attestorPk,
       };
 
       const onChain = createOnChainDriver(keeperConfig, false, { rpcUrl: RPC_URL, chain: foundry });
+      const domain = buildDomain(await publicClient.getChainId(), deployment.registry);
 
-      const simulator = new LocalApassSimulator();
+      const simulator = new LocalApassFactSimulator();
       // Seed the simulator to match what DeployLocal.s.sol already wrote
       // on-chain directly, the keeper's first poll should be a
-      // consistent re-observation, not a surprise change.
-      simulator.setCompliant(deployment.borrower1, SEED_TIER, SEED_SUB_TIER);
-      simulator.setCompliant(deployment.borrower2, SEED_TIER, SEED_SUB_TIER);
-      simulator.setCompliant(deployment.borrower3, SEED_TIER, SEED_SUB_TIER);
+      // consistent re-attestation, not a surprise change.
+      simulator.setActive(deployment.borrower1, SEED_TIER, SEED_SUB_TIER, "US");
+      simulator.setActive(deployment.borrower2, SEED_TIER, SEED_SUB_TIER, "US");
+      simulator.setActive(deployment.borrower3, SEED_TIER, SEED_SUB_TIER, "US");
 
       let simulatedNow = Math.floor(Date.now() / 1000);
-      const pollDeps = { dataSource: simulator.asDataSource(), onChain, poolMinTier: 20, now: () => simulatedNow };
+      const pollDeps = {
+        factSource: simulator.asFactSource(),
+        onChain,
+        poolMinTier: 20,
+        now: () => simulatedNow,
+        attestorAccount,
+        domain,
+      };
 
       let fromBlock = await publicClient.getBlockNumber();
       const events: CapturedEvent[] = [];
@@ -242,14 +258,14 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
       ]);
       expect(debt1Before).toBeGreaterThan(pos1Before[0]); // debt > collateral
       expect((await onChain.getGuardianPosition(deployment.borrower1)).state).toBe(GuardianPositionState.HEALTHY);
-      expect(await onChain.isPoolHealthy(deployment.borrower1)).toBe(true); // under-collateralized but within the 80% ratio, healthy
+      expect(await onChain.isPoolHealthy(deployment.borrower1)).toBe(true); // under-collateralized but within the 80% ratio -> healthy
 
       // -----------------------------------------------------------------
       // Step 2, simulate Cleanverse freezing borrower1 and borrower2.
       // Keeper observes, writes on-chain, flags both.
       // -----------------------------------------------------------------
-      simulator.freeze(deployment.borrower1, SEED_TIER, SEED_SUB_TIER);
-      simulator.freeze(deployment.borrower2, SEED_TIER, SEED_SUB_TIER);
+      simulator.freeze(deployment.borrower1, SEED_TIER, SEED_SUB_TIER, "US");
+      simulator.freeze(deployment.borrower2, SEED_TIER, SEED_SUB_TIER, "US");
 
       const poll1 = await pollBorrower(pollDeps, deployment.borrower1);
       const poll2 = await pollBorrower(pollDeps, deployment.borrower2);
@@ -257,8 +273,8 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
 
       expect(poll1.classification.compliant).toBe(false);
       expect(poll1.classification.reason).toBe(EligibilityReason.FROZEN);
-      expect(poll1.actionsTaken.map((a) => a.kind)).toEqual(["observeCompliance", "flag"]);
-      expect(poll2.actionsTaken.map((a) => a.kind)).toEqual(["observeCompliance", "flag"]);
+      expect(poll1.actionsTaken.map((a) => a.kind)).toEqual(["submitAttestation", "flag"]);
+      expect(poll2.actionsTaken.map((a) => a.kind)).toEqual(["submitAttestation", "flag"]);
 
       const pos1AfterFlag = await onChain.getGuardianPosition(deployment.borrower1);
       expect(pos1AfterFlag.state).toBe(GuardianPositionState.FLAGGED);
@@ -271,11 +287,11 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
       // -----------------------------------------------------------------
       // Branch A, borrower1: compliance restored DURING grace -> reinstate.
       // -----------------------------------------------------------------
-      simulator.setCompliant(deployment.borrower1, SEED_TIER, SEED_SUB_TIER);
+      simulator.setActive(deployment.borrower1, SEED_TIER, SEED_SUB_TIER, "US");
       const reinstatePoll = await pollBorrower(pollDeps, deployment.borrower1);
       await captureNewEvents();
 
-      expect(reinstatePoll.actionsTaken.map((a) => a.kind)).toEqual(["observeCompliance", "reinstate"]);
+      expect(reinstatePoll.actionsTaken.map((a) => a.kind)).toEqual(["submitAttestation", "reinstate"]);
       const pos1AfterReinstate = await onChain.getGuardianPosition(deployment.borrower1);
       expect(pos1AfterReinstate.state).toBe(GuardianPositionState.HEALTHY);
 
@@ -301,10 +317,10 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
       // Branch B, borrower2: freeze borrower3 too (for Branch B'), then
       // let grace elapse for borrower2 and borrower3 without reinstating.
       // -----------------------------------------------------------------
-      simulator.freeze(deployment.borrower3, SEED_TIER, SEED_SUB_TIER);
+      simulator.freeze(deployment.borrower3, SEED_TIER, SEED_SUB_TIER, "US");
       const poll3 = await pollBorrower(pollDeps, deployment.borrower3);
       await captureNewEvents();
-      expect(poll3.actionsTaken.map((a) => a.kind)).toEqual(["observeCompliance", "flag"]);
+      expect(poll3.actionsTaken.map((a) => a.kind)).toEqual(["submitAttestation", "flag"]);
 
       await testClient.increaseTime({ seconds: GRACE_PERIOD_SECONDS + 5 });
       await testClient.mine({ blocks: 1 });
@@ -313,7 +329,7 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
       // borrower2: grace elapsed, still non-compliant -> startUnwind.
       const unwind2 = await pollBorrower(pollDeps, deployment.borrower2);
       await captureNewEvents();
-      expect(unwind2.actionsTaken.map((a) => a.kind)).toEqual(["observeCompliance", "startUnwind"]);
+      expect(unwind2.actionsTaken.map((a) => a.kind)).toEqual(["submitAttestation", "startUnwind"]);
 
       const pos2AfterUnwindStart = await onChain.getGuardianPosition(deployment.borrower2);
       const debt2AfterSelfCure = await publicClient.readContract({
@@ -365,7 +381,7 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
       // Keeper's next poll sees debt cleared -> completeUnwind.
       const complete2 = await pollBorrower(pollDeps, deployment.borrower2);
       await captureNewEvents();
-      expect(complete2.actionsTaken.map((a) => a.kind)).toEqual(["observeCompliance", "completeUnwind"]);
+      expect(complete2.actionsTaken.map((a) => a.kind)).toEqual(["submitAttestation", "completeUnwind"]);
 
       const pos2Final = await onChain.getGuardianPosition(deployment.borrower2);
       expect(pos2Final.state).toBe(GuardianPositionState.RESOLVED);
@@ -392,7 +408,7 @@ describe.runIf(checkToolsAvailable())("end-to-end local rehearsal (anvil)", () =
       // -----------------------------------------------------------------
       const unwind3 = await pollBorrower(pollDeps, deployment.borrower3);
       await captureNewEvents();
-      expect(unwind3.actionsTaken.map((a) => a.kind)).toEqual(["observeCompliance", "startUnwind"]);
+      expect(unwind3.actionsTaken.map((a) => a.kind)).toEqual(["submitAttestation", "startUnwind"]);
 
       const pos3Final = await onChain.getGuardianPosition(deployment.borrower3);
       expect(pos3Final.state).toBe(GuardianPositionState.RESOLVED); // resolved WITHIN startUnwind, no separate completeUnwind needed

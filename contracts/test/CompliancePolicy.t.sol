@@ -16,6 +16,7 @@ import {TestComplianceGate} from "../src/test/TestComplianceGate.sol";
 import {TestTierOracle} from "../src/test/TestTierOracle.sol";
 import {TestCountrySource} from "../src/test/TestCountrySource.sol";
 import {MockERC20} from "../src/test/MockERC20.sol";
+import {EIP712TestUtils} from "./helpers/EIP712TestUtils.sol";
 
 contract CompliancePolicyTest is Test {
     CompliancePolicy policy;
@@ -321,7 +322,7 @@ contract CompliancePolicyTest is Test {
  * duration and staleness tolerance changes on the policy propagate live to
  * RevocationGuardian and ComplianceRegistry respectively.
  */
-contract CompliancePolicyIntegrationTest is Test {
+contract CompliancePolicyIntegrationTest is EIP712TestUtils {
     LendingPool pool;
     CompliancePolicy policy;
     TestComplianceGate complianceGate;
@@ -413,9 +414,31 @@ contract CompliancePolicyIntegrationTest is Test {
         assertEq(pool.currentDebt(alice), 100e18);
     }
 
+    uint256 constant ATTESTOR_PK = 0xA771E5709;
+
+    function _attest(
+        ComplianceRegistry registry,
+        address user,
+        uint16 tier,
+        uint16 subTier,
+        uint8 apassStatus
+    ) internal {
+        ComplianceRegistry.ComplianceAttestation memory a = ComplianceRegistry.ComplianceAttestation({
+            user: user,
+            tier: tier,
+            subTier: subTier,
+            country: bytes2("US"),
+            apassStatus: apassStatus,
+            expiry: block.timestamp + 365 days,
+            issuedAt: block.timestamp,
+            nonce: registry.lastNonce(user) + 1
+        });
+        registry.submitAttestation(a, _sign(ATTESTOR_PK, registry, a));
+    }
+
     function test_GraceDurationChange_PropagatesLiveToGuardian() public {
         ComplianceRegistry registry = new ComplianceRegistry(owner, policy);
-        registry.setKeeper(owner, true);
+        registry.setAttestor(vm.addr(ATTESTOR_PK), true);
 
         LendingPool p2 = new LendingPool(
             IERC20(address(asset)),
@@ -430,7 +453,7 @@ contract CompliancePolicyIntegrationTest is Test {
         RevocationGuardian guardian = new RevocationGuardian(registry, p2, owner);
         p2.setGuardian(address(guardian));
 
-        registry.observeCompliance(alice, false, 50, 80, ComplianceRegistry.Reason.FROZEN);
+        _attest(registry, alice, 50, 80, registry.APASS_STATUS_FROZEN());
 
         policy.setGraceDuration(9999);
         guardian.flag(alice);
@@ -441,9 +464,9 @@ contract CompliancePolicyIntegrationTest is Test {
 
     function test_StalenessChange_PropagatesLiveToRegistry() public {
         ComplianceRegistry registry = new ComplianceRegistry(owner, policy);
-        registry.setKeeper(owner, true);
+        registry.setAttestor(vm.addr(ATTESTOR_PK), true);
 
-        registry.observeCompliance(alice, true, 50, 80, ComplianceRegistry.Reason.NONE);
+        _attest(registry, alice, 50, 80, registry.APASS_STATUS_ACTIVE());
 
         policy.setMaxComplianceStaleness(10);
         vm.warp(block.timestamp + 11);
@@ -451,4 +474,3 @@ contract CompliancePolicyIntegrationTest is Test {
         assertFalse(registry.isFresh(alice)); // new, tighter staleness window applies immediately
     }
 }
-

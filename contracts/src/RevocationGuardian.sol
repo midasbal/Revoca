@@ -39,6 +39,14 @@ import {LendingPool} from "./LendingPool.sol";
  * deviation, it avoids two enum values with no real transition between
  * them (and the wasted storage write that would imply).
  *
+ * Grace duration is NOT this contract's own state, per docs/ROADMAP.md
+ * Phase 2a, it's read live from `pool.policy().graceDuration()`
+ * (CompliancePolicy), the single source of truth every lifecycle parameter
+ * lives on. `flag()` reads it fresh at flag-time, so an owner change to the
+ * policy's grace duration takes effect for the NEXT flag, not retroactively
+ * for positions already in their grace window (`graceEndsAt` is fixed at
+ * flag-time, per-position).
+ *
  * A FLAGGED position can return to HEALTHY via `reinstate()` if compliance
  * (and tier-derived health) is restored before grace elapses. Once
  * UNWINDING has begun, there is no path back, the unwind must complete.
@@ -50,15 +58,16 @@ import {LendingPool} from "./LendingPool.sol";
  *
  * `flag()` distinguishes exactly what this contract has visibility into:
  * - registry shows `compliant == false`: reason is whatever
- *   ComplianceRegistry recorded (FROZEN/EXPIRED/INELIGIBLE, BLACKLISTED is
- *   defined but never populated by the current keeper, see
- *   ComplianceRegistry.sol's header), defaulting to INELIGIBLE if the
- *   keeper didn't supply anything more specific.
+ *   `registry.ineligibilityReason()` DERIVES live from the attestor's raw
+ *   facts + CompliancePolicy (FROZEN/EXPIRED/INELIGIBLE, BLACKLISTED is
+ *   defined but never derivable today, see ComplianceRegistry.sol's
+ *   header; there is no keeper-supplied verdict anymore, per Phase 2b,
+ *   the attestor signs facts only, never a reason).
  * - registry shows `compliant == true` but `pool.isHealthy(borrower) ==
- *   false`: TIER_DROP. This is NOT something the registry or keeper can
- *   determine, it's inherently pool-relative (this position's debt vs. its
- *   collateral at the CURRENT tier-derived ratio), so only this contract,
- *   which reads both the registry AND the pool, can infer it.
+ *   false`: TIER_DROP. This is NOT something the registry can determine,
+ *   it's inherently pool-relative (this position's debt vs. its collateral
+ *   at the CURRENT tier-derived ratio), so only this contract, which reads
+ *   both the registry AND the pool, can infer it.
  *
  * SELF-CURE, THEN LIQUIDATION
  *
@@ -120,9 +129,6 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
     ComplianceRegistry public immutable registry;
     LendingPool public immutable pool;
 
-    /// @notice Seconds between flag() and the earliest startUnwind() call.
-    uint256 public gracePeriod;
-
     mapping(address => GuardianPosition) public positions;
 
     event PositionFlagged(address indexed borrower, ComplianceRegistry.Reason reason, uint256 graceEndsAt);
@@ -130,7 +136,6 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
     event UnwindStarted(address indexed borrower, uint256 debtAtStart, uint256 collateralAtStart);
     event UnwindStep(address indexed borrower, string step, uint256 amount, uint256 remainingDebt);
     event UnwindCompleted(address indexed borrower, uint256 residualCollateral);
-    event GracePeriodChanged(uint256 oldValue, uint256 newValue);
 
     error NotEligibleToFlag(address borrower, PositionState currentState);
     error PositionNotFlaggable(address borrower);
@@ -142,17 +147,9 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
     error StillNonCompliant(address borrower);
     error StillUnhealthy(address borrower);
 
-    constructor(ComplianceRegistry registry_, LendingPool pool_, address initialOwner, uint256 gracePeriod_)
-        Ownable(initialOwner)
-    {
+    constructor(ComplianceRegistry registry_, LendingPool pool_, address initialOwner) Ownable(initialOwner) {
         registry = registry_;
         pool = pool_;
-        gracePeriod = gracePeriod_;
-    }
-
-    function setGracePeriod(uint256 newValue) external onlyOwner {
-        emit GracePeriodChanged(gracePeriod, newValue);
-        gracePeriod = newValue;
     }
 
     /**
@@ -171,7 +168,7 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
 
         ComplianceRegistry.Reason reason;
         if (!registry.isCompliant(borrower)) {
-            reason = registry.lastReason(borrower);
+            reason = registry.ineligibilityReason(borrower);
             if (reason == ComplianceRegistry.Reason.NONE) {
                 reason = ComplianceRegistry.Reason.INELIGIBLE;
             }
@@ -184,7 +181,7 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
         p.state = PositionState.FLAGGED;
         p.reason = reason;
         p.flaggedAt = block.timestamp;
-        p.graceEndsAt = block.timestamp + gracePeriod;
+        p.graceEndsAt = block.timestamp + pool.policy().graceDuration();
         p.unwindStartedAt = 0;
 
         emit PositionFlagged(borrower, reason, p.graceEndsAt);

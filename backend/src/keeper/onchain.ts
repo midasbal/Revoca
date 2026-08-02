@@ -25,16 +25,25 @@ import {
   parseAbi,
   type Address,
   type Chain,
+  type Hex,
   type PublicClient,
   type WalletClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { KeeperConfig } from "./config.js";
 import { requireOnChainConfig } from "./config.js";
-import type { EligibilityReason } from "./eligibility.js";
+import type { ComplianceAttestation } from "../attestor/types.js";
 
+// Phase 2b: the registry's write path is now EIP-712 signature-verified
+// attestations (see contracts/src/ComplianceRegistry.sol), the old
+// owner/keeper-gated `observeCompliance` no longer exists on-chain.
+// `submitAttestation` is PERMISSIONLESS (trust is in the signature, not
+// the sender), so the keeper's own key is used here purely to RELAY a
+// pre-signed attestation (built by backend/src/attestor), not to sign one.
 const REGISTRY_ABI = parseAbi([
-  "function observeCompliance(address user, bool compliant, uint16 tier, uint16 subTier, uint8 reason) external",
+  "struct ComplianceAttestation { address user; uint16 tier; uint16 subTier; bytes2 country; uint8 apassStatus; uint256 expiry; uint256 issuedAt; uint256 nonce; }",
+  "function submitAttestation(ComplianceAttestation attestation, bytes signature) external",
+  "function lastNonce(address user) external view returns (uint256)",
 ]);
 
 const GUARDIAN_ABI = parseAbi([
@@ -60,7 +69,7 @@ export enum GuardianPositionState {
 }
 
 export type IntendedAction =
-  | { kind: "observeCompliance"; user: Address; compliant: boolean; tier: number; subTier: number; reason: EligibilityReason }
+  | { kind: "submitAttestation"; attestation: ComplianceAttestation; signature: Hex }
   | { kind: "flag"; borrower: Address }
   | { kind: "reinstate"; borrower: Address }
   | { kind: "startUnwind"; borrower: Address }
@@ -81,6 +90,8 @@ export interface OnChainDriver {
   getGuardianPosition(borrower: Address): Promise<GuardianPosition>;
   isPoolHealthy(borrower: Address): Promise<boolean>;
   currentDebt(borrower: Address): Promise<bigint>;
+  /** The next valid nonce for `user` on ComplianceRegistry, `lastNonce(user) + 1`. Needed to build a fresh attestation before signing it. */
+  getNextNonce(user: Address): Promise<bigint>;
   /** Executes (or, in dry-run, logs) the given action. Waits for the transaction receipt before resolving (skipped in dry-run, where nothing is sent). Returns the tx hash if actually sent. */
   execute(action: IntendedAction): Promise<`0x${string}` | null>;
 }
@@ -179,6 +190,19 @@ export function createOnChainDriver(cfg: KeeperConfig, dryRun: boolean, opts: On
     });
   }
 
+  async function getNextNonce(user: Address): Promise<bigint> {
+    if (!cfg.registryAddress) {
+      throw new Error("getNextNonce requires COMPLIANCE_REGISTRY_ADDRESS");
+    }
+    const last = await publicClient.readContract({
+      address: cfg.registryAddress,
+      abi: REGISTRY_ABI,
+      functionName: "lastNonce",
+      args: [user],
+    });
+    return last + 1n;
+  }
+
   async function execute(action: IntendedAction): Promise<`0x${string}` | null> {
     if (dryRun) {
       console.log(`[dry-run] would execute: ${JSON.stringify(action)}`);
@@ -191,13 +215,13 @@ export function createOnChainDriver(cfg: KeeperConfig, dryRun: boolean, opts: On
 
     let hash: `0x${string}`;
     switch (action.kind) {
-      case "observeCompliance":
+      case "submitAttestation":
         if (!cfg.registryAddress) throw new Error("COMPLIANCE_REGISTRY_ADDRESS not configured");
         hash = await walletClient.writeContract({
           address: cfg.registryAddress,
           abi: REGISTRY_ABI,
-          functionName: "observeCompliance",
-          args: [action.user, action.compliant, action.tier, action.subTier, action.reason],
+          functionName: "submitAttestation",
+          args: [action.attestation, action.signature],
           account,
           chain: opts.chain,
         });
@@ -252,5 +276,5 @@ export function createOnChainDriver(cfg: KeeperConfig, dryRun: boolean, opts: On
     return hash;
   }
 
-  return { dryRun, discoverBorrowers, getGuardianPosition, isPoolHealthy, currentDebt, execute };
+  return { dryRun, discoverBorrowers, getGuardianPosition, isPoolHealthy, currentDebt, getNextNonce, execute };
 }

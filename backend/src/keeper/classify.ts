@@ -37,14 +37,18 @@ export interface BorrowerClassification {
   expirationTime: number | null;
 }
 
-export async function classifyBorrower(
-  source: ApassDataSource,
+/**
+ * Pure decision step, split out from `classifyBorrower` so callers that
+ * already have the raw fields in hand (e.g. poller.ts, which also needs
+ * them to build an EIP-712 attestation via backend/src/attestor) don't
+ * have to fetch them twice from the same source.
+ */
+export function classifyFromRawFields(
+  data: RawApassFields,
   address: string,
   poolMinTier: number,
   nowUnixSeconds: number,
-): Promise<BorrowerClassification> {
-  const data = await source(address);
-
+): BorrowerClassification {
   const tier = parseApiTier(data.tier ?? null);
   const subTier = data.subTier ?? null;
   const status = data.status ?? null;
@@ -60,4 +64,14 @@ export async function classifyBorrower(
   });
 
   return { address, compliant, reason, tier, subTier, status, expirationTime };
+}
+
+export async function classifyBorrower(
+  source: ApassDataSource,
+  address: string,
+  poolMinTier: number,
+  nowUnixSeconds: number,
+): Promise<BorrowerClassification> {
+  const data = await source(address);
+  return classifyFromRawFields(data, address, poolMinTier, nowUnixSeconds);
 }

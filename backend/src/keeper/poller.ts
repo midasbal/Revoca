@@ -1,24 +1,30 @@
 /**
  * The keeper's poll loop: for each known borrower, gets an authoritative
- * eligibility read from an ApassDataSource (either the live Cleanverse
- * sandbox via cleanverseSource.ts, or, for the local anvil rehearsal only,
- * localSimulator.ts's deterministic in-process stand-in), writes it to
- * ComplianceRegistry, and drives RevocationGuardian's state machine as the
- * observation dictates. Every on-chain write goes through OnChainDriver,
- * which honors dry-run (see onchain.ts). This module doesn't know or care
- * which source it was given, that's the whole point of the
- * ApassDataSource seam.
+ * fact read from an ApassFactSource (either the live Cleanverse sandbox via
+ * attestor/attest.ts's cleanverseFactSource, or, for the local anvil
+ * rehearsal only, attestor/attest.ts's LocalApassFactSimulator), signs a
+ * fresh EIP-712 ComplianceAttestation over those facts (Phase 2b, see
+ * contracts/src/ComplianceRegistry.sol's header), relays it on-chain, and
+ * drives RevocationGuardian's state machine from the SAME facts' locally
+ * computed classification (classifyFromRawFields), one fetch, two uses,
+ * no second network/simulator call. Every on-chain write goes through
+ * OnChainDriver, which honors dry-run (see onchain.ts).
  */
-import type { Address } from "viem";
-import { classifyBorrower, type ApassDataSource, type BorrowerClassification } from "./classify.js";
+import type { Address, LocalAccount } from "viem";
+import { classifyFromRawFields, type BorrowerClassification } from "./classify.js";
 import { GuardianPositionState, type IntendedAction, type OnChainDriver } from "./onchain.js";
+import { mapRawFactsToAttestation, type ApassFactSource, type Eip712Domain } from "../attestor/types.js";
+import { signAttestation } from "../attestor/sign.js";
 
 export interface PollDeps {
-  dataSource: ApassDataSource;
+  factSource: ApassFactSource;
   onChain: OnChainDriver;
   poolMinTier: number;
-  /** Injectable clock (unix seconds), keeps decision logic deterministic in tests. */
+  /** Injectable clock (unix seconds), keeps decision logic AND attestation issuedAt deterministic in tests. */
   now: () => number;
+  /** The attestor's signing account (see backend/src/attestor/config.js's ATTESTOR_PRIVATE_KEY). Signing and on-chain relay are deliberately separate, see onchain.ts's header. */
+  attestorAccount: LocalAccount;
+  domain: Eip712Domain;
 }
 
 export interface BorrowerPollResult {
@@ -33,20 +39,17 @@ export interface BorrowerPollResult {
  * state transitions.
  */
 export async function pollBorrower(deps: PollDeps, address: Address): Promise<BorrowerPollResult> {
-  const classification = await classifyBorrower(deps.dataSource, address, deps.poolMinTier, deps.now());
+  const raw = await deps.factSource(address);
+  const classification = classifyFromRawFields(raw, address, deps.poolMinTier, deps.now());
 
   const actionsTaken: IntendedAction[] = [];
 
-  const observeAction: IntendedAction = {
-    kind: "observeCompliance",
-    user: address,
-    compliant: classification.compliant,
-    tier: classification.tier ?? 0,
-    subTier: classification.subTier ?? 0,
-    reason: classification.reason,
-  };
-  await deps.onChain.execute(observeAction);
-  actionsTaken.push(observeAction);
+  const nonce = await deps.onChain.getNextNonce(address as `0x${string}`);
+  const attestation = mapRawFactsToAttestation(raw, address as `0x${string}`, nonce, BigInt(deps.now()));
+  const signature = await signAttestation(deps.attestorAccount, deps.domain, attestation);
+  const attestAction: IntendedAction = { kind: "submitAttestation", attestation, signature };
+  await deps.onChain.execute(attestAction);
+  actionsTaken.push(attestAction);
 
   const position = await deps.onChain.getGuardianPosition(address);
   const poolHealthy = await deps.onChain.isPoolHealthy(address);

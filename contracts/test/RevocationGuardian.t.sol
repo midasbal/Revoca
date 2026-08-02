@@ -1,24 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {LendingPool} from "../src/LendingPool.sol";
 import {IComplianceGate} from "../src/interfaces/IComplianceGate.sol";
 import {ITierOracle} from "../src/interfaces/ITierOracle.sol";
+import {ICountrySource} from "../src/interfaces/ICountrySource.sol";
+import {CompliancePolicy} from "../src/CompliancePolicy.sol";
 import {ComplianceRegistry} from "../src/ComplianceRegistry.sol";
 import {RevocationGuardian} from "../src/RevocationGuardian.sol";
+import {TestCountrySource} from "../src/test/TestCountrySource.sol";
 import {MockERC20} from "../src/test/MockERC20.sol";
+import {EIP712TestUtils} from "./helpers/EIP712TestUtils.sol";
 
-contract RevocationGuardianTest is Test {
+contract RevocationGuardianTest is EIP712TestUtils {
     LendingPool pool;
     MockERC20 asset;
     ComplianceRegistry registry;
     RevocationGuardian guardian;
+    CompliancePolicy policy;
+    TestCountrySource countrySource;
 
     address owner = address(this);
-    address keeper = address(0x1CEE7E4);
+    uint256 constant ATTESTOR_PK = 0xA771E5709;
+    address attestor;
     address lender1 = address(0x1EA1);
     address alice = address(0xA11CE);
     address bob = address(0xB0B);
@@ -32,19 +38,24 @@ contract RevocationGuardianTest is Test {
 
     function setUp() public {
         asset = new MockERC20("Mock USD", "mUSD");
-        registry = new ComplianceRegistry(owner, MAX_STALENESS);
-        registry.setKeeper(keeper, true);
+        policy = new CompliancePolicy(owner, GRACE_PERIOD, MAX_STALENESS);
+        registry = new ComplianceRegistry(owner, policy);
+        attestor = vm.addr(ATTESTOR_PK);
+        registry.setAttestor(attestor, true);
+        countrySource = new TestCountrySource();
 
         pool = new LendingPool(
             IERC20(address(asset)),
             IComplianceGate(address(registry)),
             ITierOracle(address(registry)),
+            ICountrySource(address(countrySource)),
+            policy,
             owner,
             RATE_BPS_PER_SECOND,
             LIQUIDATION_BONUS_BPS
         );
 
-        guardian = new RevocationGuardian(registry, pool, owner, GRACE_PERIOD);
+        guardian = new RevocationGuardian(registry, pool, owner);
         pool.setGuardian(address(guardian));
 
         address[4] memory users = [lender1, alice, bob, liquidator];
@@ -58,11 +69,48 @@ contract RevocationGuardianTest is Test {
         pool.deposit(1_000_000e18);
     }
 
-    function _observe(address user, bool compliant, uint16 tier, uint16 subTier, ComplianceRegistry.Reason reason)
-        internal
-    {
-        vm.prank(keeper);
-        registry.observeCompliance(user, compliant, tier, subTier, reason);
+    /// @dev Builds, signs (with the fixed test attestor key), and submits a
+    /// fresh EIP-712 attestation for `user`, with an auto-incrementing nonce
+    /// so repeated calls (refreshing an observation) just work.
+    function _attest(address user, uint16 tier, uint16 subTier, uint8 apassStatus, uint256 expiry) internal {
+        ComplianceRegistry.ComplianceAttestation memory a = ComplianceRegistry.ComplianceAttestation({
+            user: user,
+            tier: tier,
+            subTier: subTier,
+            country: bytes2("US"),
+            apassStatus: apassStatus,
+            expiry: expiry,
+            issuedAt: block.timestamp,
+            nonce: registry.lastNonce(user) + 1
+        });
+        registry.submitAttestation(a, _sign(ATTESTOR_PK, registry, a));
+    }
+
+    /// @dev Active status, expiry far in the future -> isCompliant() true (given the default, unrestricted policy this suite uses).
+    function _attestCompliant(address user, uint16 tier, uint16 subTier) internal {
+        _attest(user, tier, subTier, registry.APASS_STATUS_ACTIVE(), block.timestamp + 365 days);
+    }
+
+    /// @dev Frozen A-Pass status -> isCompliant() false, ineligibilityReason() == FROZEN.
+    function _attestFrozen(address user, uint16 tier, uint16 subTier) internal {
+        _attest(user, tier, subTier, registry.APASS_STATUS_FROZEN(), block.timestamp + 365 days);
+    }
+
+    /// @dev Active status but already-elapsed expiry -> isCompliant() false, ineligibilityReason() == EXPIRED.
+    function _attestExpired(address user, uint16 tier, uint16 subTier) internal {
+        _attest(user, tier, subTier, registry.APASS_STATUS_ACTIVE(), block.timestamp);
+    }
+
+    /// @dev Unknown (neither active nor frozen) status -> isCompliant() false,
+    /// ineligibilityReason() == INELIGIBLE with no more specific cause, the
+    /// new-model analog of the old "keeper marked non-compliant but gave no
+    /// reason" case. Also stands in for the old BLACKLISTED test case: that
+    /// reason is never derivable by this registry (see its header comment;
+    /// query_apass has no blacklist field), so any test that previously used
+    /// it is only asserting "flag works on a non-compliant position," which
+    /// this produces just as well.
+    function _attestIneligibleNoReason(address user, uint16 tier, uint16 subTier) internal {
+        _attest(user, tier, subTier, registry.APASS_STATUS_UNKNOWN(), block.timestamp + 365 days);
     }
 
     // -------------------------------------------------------------------
@@ -76,14 +124,14 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_Flag_RevertsWhenCompliantAndHealthy() public {
-        _observe(alice, true, 50, 80, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 50, 80);
         // No pool position at all -> isHealthy() is trivially true (debt == 0).
         vm.expectRevert(abi.encodeWithSelector(RevocationGuardian.PositionNotFlaggable.selector, alice));
         guardian.flag(alice);
     }
 
     function test_Flag_FrozenReason() public {
-        _observe(alice, false, 50, 80, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 50, 80);
 
         vm.expectEmit(true, false, false, true);
         emit RevocationGuardian.PositionFlagged(alice, ComplianceRegistry.Reason.FROZEN, block.timestamp + GRACE_PERIOD);
@@ -98,7 +146,7 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_Flag_DefaultsToIneligibleWhenKeeperGaveNoReason() public {
-        _observe(alice, false, 50, 80, ComplianceRegistry.Reason.NONE);
+        _attestIneligibleNoReason(alice, 50, 80);
         guardian.flag(alice);
 
         (, ComplianceRegistry.Reason reason,,,) = guardian.positions(alice);
@@ -106,7 +154,7 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_Flag_TierDropReason() public {
-        _observe(alice, true, 50, 80, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 50, 80);
 
         vm.prank(alice);
         pool.postCollateral(1000e18);
@@ -114,7 +162,7 @@ contract RevocationGuardianTest is Test {
         pool.borrow(1200e18); // near the 80% max
 
         // Tier downgrade -> compliant still true, but pool now unhealthy.
-        _observe(alice, true, 0, 0, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 0, 0);
         assertFalse(pool.isHealthy(alice));
 
         guardian.flag(alice);
@@ -124,7 +172,7 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_Flag_RevertsWhenAlreadyFlagged() public {
-        _observe(alice, false, 0, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 0, 0);
         guardian.flag(alice);
 
         vm.expectRevert(
@@ -136,7 +184,7 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_Flag_PermissionlessCallableByAnyone() public {
-        _observe(alice, false, 0, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 0, 0);
         vm.prank(rando);
         guardian.flag(alice); // no revert -> anyone may call
     }
@@ -146,12 +194,12 @@ contract RevocationGuardianTest is Test {
     // -------------------------------------------------------------------
 
     function test_Reinstate_DuringGrace_ReturnsToHealthy() public {
-        _observe(alice, false, 0, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 0, 0);
         guardian.flag(alice);
 
         // Compliance restored, well before grace elapses.
         vm.warp(block.timestamp + 100);
-        _observe(alice, true, 50, 80, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 50, 80);
 
         vm.expectEmit(true, false, false, true);
         emit RevocationGuardian.PositionReinstated(alice);
@@ -162,17 +210,17 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_Reinstate_RevertsIfStillNonCompliant() public {
-        _observe(alice, false, 0, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 0, 0);
         guardian.flag(alice);
 
-        _observe(alice, false, 0, 0, ComplianceRegistry.Reason.FROZEN); // refresh but still non-compliant
+        _attestFrozen(alice, 0, 0); // refresh but still non-compliant
 
         vm.expectRevert(abi.encodeWithSelector(RevocationGuardian.StillNonCompliant.selector, alice));
         guardian.reinstate(alice);
     }
 
     function test_Reinstate_RevertsIfStale() public {
-        _observe(alice, false, 0, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 0, 0);
         guardian.flag(alice);
 
         vm.warp(block.timestamp + MAX_STALENESS + 1); // observation now stale, never refreshed
@@ -182,17 +230,17 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_Reinstate_RevertsIfTierStillUnhealthy() public {
-        _observe(alice, true, 50, 80, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 50, 80);
         vm.prank(alice);
         pool.postCollateral(1000e18);
         vm.prank(alice);
         pool.borrow(1200e18);
 
-        _observe(alice, true, 0, 0, ComplianceRegistry.Reason.NONE); // tier drop
+        _attestCompliant(alice, 0, 0); // tier drop
         guardian.flag(alice);
 
         // Compliance is "true" but tier is still bad -> pool remains unhealthy.
-        _observe(alice, true, 0, 0, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 0, 0);
 
         vm.expectRevert(abi.encodeWithSelector(RevocationGuardian.StillUnhealthy.selector, alice));
         guardian.reinstate(alice);
@@ -208,7 +256,7 @@ contract RevocationGuardianTest is Test {
     // -------------------------------------------------------------------
 
     function test_StartUnwind_RevertsBeforeGraceElapses() public {
-        _observe(alice, false, 0, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 0, 0);
         guardian.flag(alice);
 
         vm.expectRevert(
@@ -223,7 +271,7 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_StartUnwind_SelfCureFullyResolves_WhenCollateralCoversDebt() public {
-        _observe(alice, true, 20, 0, ComplianceRegistry.Reason.NONE); // 130% ratio
+        _attestCompliant(alice, 20, 0); // 130% ratio
         // Collateral (2000e18) deliberately well above the 1300e18 minimum
         // the 130% ratio requires for 1000e18 principal, the extra
         // headroom is what covers the interest that accrues DURING the
@@ -235,7 +283,7 @@ contract RevocationGuardianTest is Test {
         pool.borrow(1000e18);
 
         // Freeze -> flag -> grace elapses.
-        _observe(alice, false, 20, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 20, 0);
         guardian.flag(alice);
         vm.warp(block.timestamp + GRACE_PERIOD);
 
@@ -256,13 +304,13 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_StartUnwind_SelfCureInsufficient_SpillsToLiquidation_ThenCompletesUnwind() public {
-        _observe(alice, true, 50, 80, ComplianceRegistry.Reason.NONE); // 80% ratio -> under-collateralized borrow allowed
+        _attestCompliant(alice, 50, 80); // 80% ratio -> under-collateralized borrow allowed
         vm.prank(alice);
         pool.postCollateral(1000e18);
         vm.prank(alice);
         pool.borrow(1200e18); // debt (1200e18) > collateral (1000e18)
 
-        _observe(alice, false, 50, 80, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 50, 80);
         guardian.flag(alice);
         vm.warp(block.timestamp + GRACE_PERIOD);
 
@@ -293,7 +341,7 @@ contract RevocationGuardianTest is Test {
     }
 
     function test_StartUnwind_PermissionlessCallableByAnyone() public {
-        _observe(alice, false, 0, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 0, 0);
         guardian.flag(alice);
         vm.warp(block.timestamp + GRACE_PERIOD);
 
@@ -306,13 +354,13 @@ contract RevocationGuardianTest is Test {
     // -------------------------------------------------------------------
 
     function test_InterestAccruesExactlyUpToUnwindMoment() public {
-        _observe(alice, true, 20, 0, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 20, 0);
         vm.prank(alice);
         pool.postCollateral(2000e18);
         vm.prank(alice);
         pool.borrow(1000e18);
 
-        _observe(alice, false, 20, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 20, 0);
         guardian.flag(alice);
 
         // Warp additional time WITHIN the grace period and beyond, and
@@ -347,7 +395,7 @@ contract RevocationGuardianTest is Test {
     // -------------------------------------------------------------------
 
     function test_ResidualCollateralRecoverable_ByNonCompliantBorrower_AfterResolution() public {
-        _observe(alice, true, 20, 0, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 20, 0);
         // Extra headroom above the 1300e18 minimum so self-cure covers the
         // interest accrued during grace too (see the identical note in
         // test_StartUnwind_SelfCureFullyResolves_WhenCollateralCoversDebt).
@@ -356,7 +404,7 @@ contract RevocationGuardianTest is Test {
         vm.prank(alice);
         pool.borrow(1000e18);
 
-        _observe(alice, false, 20, 0, ComplianceRegistry.Reason.FROZEN);
+        _attestFrozen(alice, 20, 0);
         guardian.flag(alice);
         vm.warp(block.timestamp + GRACE_PERIOD);
         guardian.startUnwind(alice); // fully self-cures, resolves
@@ -386,7 +434,7 @@ contract RevocationGuardianTest is Test {
     // -------------------------------------------------------------------
 
     function test_FullLifecycle_HealthyToFlaggedToUnwindingToResolved() public {
-        _observe(alice, true, 50, 80, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 50, 80);
 
         (RevocationGuardian.PositionState state,,,,) = guardian.positions(alice);
         assertEq(uint8(state), uint8(RevocationGuardian.PositionState.HEALTHY)); // default / never touched
@@ -396,7 +444,7 @@ contract RevocationGuardianTest is Test {
         vm.prank(alice);
         pool.borrow(500e18);
 
-        _observe(alice, false, 50, 80, ComplianceRegistry.Reason.EXPIRED);
+        _attestExpired(alice, 50, 80);
         guardian.flag(alice);
         (state,,,,) = guardian.positions(alice);
         assertEq(uint8(state), uint8(RevocationGuardian.PositionState.FLAGGED));
@@ -410,13 +458,13 @@ contract RevocationGuardianTest is Test {
         // Re-observe as compliant first, the last observation (FROZEN) is
         // now stale after the warp, and borrow() correctly requires fresh
         // data (see LendingPoolStaleness.t.sol).
-        _observe(alice, true, 50, 80, ComplianceRegistry.Reason.NONE);
+        _attestCompliant(alice, 50, 80);
         vm.prank(alice);
         pool.postCollateral(1000e18);
         vm.prank(alice);
         pool.borrow(500e18);
 
-        _observe(alice, false, 50, 80, ComplianceRegistry.Reason.BLACKLISTED);
+        _attestIneligibleNoReason(alice, 50, 80);
         guardian.flag(alice); // must not revert even though state was RESOLVED
         (state,,,,) = guardian.positions(alice);
         assertEq(uint8(state), uint8(RevocationGuardian.PositionState.FLAGGED));
@@ -426,12 +474,13 @@ contract RevocationGuardianTest is Test {
     // Owner controls
     // -------------------------------------------------------------------
 
-    function test_SetGracePeriod_OnlyOwner() public {
+    function test_SetGraceDuration_OnlyOwner() public {
+        // Grace duration lives on CompliancePolicy now (docs/ROADMAP.md Phase 2a).
         vm.prank(alice);
         vm.expectRevert();
-        guardian.setGracePeriod(1);
+        policy.setGraceDuration(1);
 
-        guardian.setGracePeriod(7200);
-        assertEq(guardian.gracePeriod(), 7200);
+        policy.setGraceDuration(7200);
+        assertEq(policy.graceDuration(), 7200);
     }
 }
