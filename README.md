@@ -1,5 +1,11 @@
 # Revoca
 
+Most compliance-aware lending gates entry once, at the moment a loan opens,
+and never looks again. Revoca is the design built around the case that
+gate misses: an existing position whose borrower's identity status changes
+mid-loan. It unwinds that position safely, fairly, and reversibly instead
+of leaving it stuck.
+
 Compliance-reactive, under-collateralized lending on Cleanverse. A borrower's
 A-Pass tier sets their collateral ratio, and if their eligibility changes
 mid-loan (frozen, expired, or a tier drop) an on-chain state machine drives
@@ -8,8 +14,9 @@ collateral first, a grace period before anything drastic happens, permissionless
 liquidation only if self-cure isn't enough, and full reinstatement if
 compliance is restored in time.
 
-Chain: Monad testnet, via the Cleanverse UAT sandbox. Track: DeFi (Compliant
-DeFi), built for the Cleanverse Build hackathon.
+Target chain: Monad testnet, via the Cleanverse UAT sandbox (running on
+local anvil today; see Current status and scope below). Track: DeFi
+(Compliant DeFi), built for the Cleanverse Build hackathon.
 
 ## The problem
 
