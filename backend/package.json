@@ -1,0 +1,28 @@
+{
+  "name": "revoca-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "probe": "tsx scripts/probe.ts",
+    "tier-distribution": "tsx scripts/tier-distribution.ts",
+    "status-semantics": "tsx scripts/status-semantics.ts",
+    "keeper:dry-run": "tsx scripts/keeper-dry-run.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
