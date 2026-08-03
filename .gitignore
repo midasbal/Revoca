@@ -1,6 +1,9 @@
 .env
 .env.local
-docs/cleanverse.pdf
+# Gated Cleanverse documentation (PDFs), never committed. Pattern, not just
+# docs/cleanverse.pdf, so a future addition (e.g. docs/cleanverse2.pdf)
+# can't slip through by being a different filename.
+docs/*.pdf
 
 # Internal planning/notes docs, kept local only. Only README.md files and
 # docs/THREAT_MODEL.md, docs/ARCHITECTURE.md, docs/PROJECT.md are tracked.
@@ -14,6 +17,7 @@ docs/CLEANVERSE_API.md
 docs/TIER_DISTRIBUTION.md
 docs/STRATEGY.md
 docs/COMPETITORS.md
+docs/DESIGN_A_SPIKE.md
 node_modules/
 dist/
 build/
