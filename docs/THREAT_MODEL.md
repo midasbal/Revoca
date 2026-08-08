@@ -30,6 +30,54 @@ borrower's A-Pass specifically to trigger a liquidation they profit from?
 - Does the unwind path need a delay/grace period specifically to blunt this,
   separate from any grace period for false positives?
 
+**Analyzed rigorously, not assumed, see docs/GRIEFING_ANALYSIS.md
+(gitignored, local) for the full model and worked numbers; proof is
+`contracts/test/GriefingBound.t.sol`, 6 properties, 5 of them fuzzed at
+5000 runs each across every real collateral-ratio band, all passing.**
+
+**Result:** a freeze cannot create liquidation profit that would not
+already exist without it. Two independent, structural reasons, not a
+grace-period timing argument:
+
+1. `LendingPool.isHealthy` never reads compliance/freeze status at all,
+   only debt against the tier-derived collateral ratio. A freeze, with
+   tier/subTier held constant, cannot change what `isHealthy` returns,
+   this follows directly from the function's body, not from a
+   probabilistic argument. Consequence: a frozen-but-healthy position can
+   never be liquidated at all, direct `liquidate()` reverts
+   `PositionHealthy` in every case tested.
+2. Where a freeze does lead into `RevocationGuardian`'s guarded path,
+   `startUnwind`'s self-cure step runs unconditionally BEFORE any
+   liquidator is ever involved, and applies `min(owed, collateral)`.
+   Whenever debt remains after self-cure (the only way `liquidate()`
+   becomes reachable at all), the borrower's collateral has, by
+   construction, already been fully drained to zero. A liquidator who
+   then calls `liquidate()` seizes exactly zero collateral while still
+   paying the full remaining debt, a proven, exact, strict loss in every
+   swept case, not merely "no better than normal."
+
+The only positive liquidation profit reachable anywhere in the system is
+bounded exactly by `liquidationBonusBps` of the debt (capped by available
+collateral), present identically whether or not any freeze is involved,
+`liquidate()` never reads compliance, so it is the pool's ordinary,
+pre-existing liquidation incentive, not something a freeze unlocks. This
+holds regardless of grace duration (proven directly with zero grace via
+`ForcedUnwindStrategy` too), since the bound comes from
+compliance-blind health checking and self-cure's unconditional collateral
+drain, not from timing. Grace still matters, but for a different reason:
+it protects a FALSE-POSITIVE freeze from an unnecessary unwind, giving
+`reinstate()` a real window, separate from the griefing-profit question
+answered above.
+
+**Adjacent finding, not a griefing vector but worth recording honestly:**
+because completing a spilled-over liquidation is a guaranteed loss for
+whoever calls it, there is currently no economic incentive for anyone to
+actually call `liquidate()`/`completeUnwind` on a severely
+under-collateralized position, frozen or not. It would need to happen
+altruistically or via a separate subsidy mechanism, otherwise such a
+position can sit `UNWINDING` with its bad debt unresolved. Flagged as a
+real gap in completion incentives, not solved here.
+
 ## 3. Reentrancy on the unwind path
 
 `RevocationGuardian`'s unwind likely moves collateral and/or debt state in
