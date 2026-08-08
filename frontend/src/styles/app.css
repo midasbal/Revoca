@@ -1,0 +1,420 @@
+@import '@fontsource/fraunces/500.css';
+@import '@fontsource/fraunces/500-italic.css';
+@import '@fontsource/fraunces/600.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Faint fixed-line texture on the page ground, evokes ruled register
+   paper without becoming a broadsheet grid, purely atmospheric, never
+   load-bearing for layout. */
+body {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 27px,
+    var(--rule) 27px,
+    var(--rule) 28px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* -------------------------------------------------------------------- */
+/* Page shell                                                            */
+/* -------------------------------------------------------------------- */
+
+.page {
+  min-height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(1.25rem, 5vw, 4rem) 1rem;
+}
+
+.record {
+  width: 100%;
+  max-width: 42rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 1px 2px rgba(27, 35, 33, 0.06),
+    0 10px 28px rgba(27, 35, 33, 0.06);
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+}
+
+/* -------------------------------------------------------------------- */
+/* Header strip                                                          */
+/* -------------------------------------------------------------------- */
+
+.record__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.record__live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.record__live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2.6s var(--ease-confident) infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.record__number {
+  margin-top: var(--space-3);
+  color: var(--ink-faint);
+  font-size: 0.8125rem;
+}
+
+.record__number strong {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+/* -------------------------------------------------------------------- */
+/* Standing, the signature element                                       */
+/* -------------------------------------------------------------------- */
+
+.standing {
+  margin-top: var(--space-7);
+  margin-bottom: var(--space-6);
+}
+
+.standing__label {
+  margin-bottom: var(--space-2);
+}
+
+.standing__word-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.standing__word {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2.75rem, 9vw, 5rem);
+  line-height: 0.94;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.standing__word--valid {
+  color: var(--valid);
+}
+
+.standing__word--grace {
+  color: var(--grace);
+}
+
+.standing__word--struck {
+  color: var(--struck);
+}
+
+.standing__word--loading {
+  color: var(--ink-faint);
+}
+
+.standing__strike-line {
+  position: absolute;
+  left: -2%;
+  right: -2%;
+  top: 52%;
+  height: 0.09em;
+  background: var(--struck);
+  transform-origin: left center;
+}
+
+.standing__meta {
+  margin-top: var(--space-3);
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+.standing__meta .mono {
+  color: var(--ink-faint);
+}
+
+/* -------------------------------------------------------------------- */
+/* Ruled divider with a label, functional, not decorative                */
+/* -------------------------------------------------------------------- */
+
+.ruled {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-6) 0 var(--space-5);
+}
+
+.ruled::before,
+.ruled::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+
+.ruled__label {
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------- */
+/* Data trio                                                             */
+/* -------------------------------------------------------------------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+}
+
+@media (max-width: 30rem) {
+  .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.stat__label {
+  margin-bottom: var(--space-2);
+}
+
+.stat__value {
+  font-family: var(--font-mono);
+  font-size: clamp(1.05rem, 3vw, 1.375rem);
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__unit {
+  font-size: 0.7em;
+  color: var(--ink-faint);
+  margin-left: 0.25em;
+}
+
+/* -------------------------------------------------------------------- */
+/* Ledger                                                                 */
+/* -------------------------------------------------------------------- */
+
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ledger__row {
+  display: grid;
+  grid-template-columns: 1.75rem 1fr auto;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.ledger__row:last-child {
+  border-bottom: none;
+}
+
+.ledger__index {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
+.ledger__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ledger__step {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.ledger__detail {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.ledger__meta {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.ledger__meta a {
+  display: block;
+  text-decoration: none;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+}
+
+.ledger__meta a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.ledger__empty {
+  padding: var(--space-4) 0;
+  color: var(--ink-faint);
+  font-size: 0.875rem;
+}
+
+/* -------------------------------------------------------------------- */
+/* Action area                                                           */
+/* -------------------------------------------------------------------- */
+
+.action {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--rule);
+}
+
+.action__button {
+  appearance: none;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ease-confident),
+    color 160ms var(--ease-confident),
+    border-color 160ms var(--ease-confident);
+}
+
+.action__button:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper-raised);
+}
+
+.action__button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.action__button--strike {
+  border-color: var(--struck);
+  color: var(--struck);
+}
+
+.action__button--strike:hover:not(:disabled) {
+  background: var(--struck);
+  color: var(--paper-raised);
+}
+
+.action__status {
+  margin-top: var(--space-3);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.action__status--error {
+  color: var(--struck);
+}
+
+.action__countdown {
+  font-family: var(--font-mono);
+  color: var(--grace);
+}
+
+/* -------------------------------------------------------------------- */
+/* Loading / empty states                                                */
+/* -------------------------------------------------------------------- */
+
+.notice {
+  font-size: 0.875rem;
+  color: var(--ink-faint);
+}
