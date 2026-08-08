@@ -427,7 +427,7 @@ export async function buildAuditReport(opts: BuildReportOptions): Promise<AuditR
   const currentRate = await publicClient.readContract({
     address: pool,
     abi: LENDING_POOL_READ_ABI,
-    functionName: "interestRateBpsPerSecond",
+    functionName: "currentInterestRateBpsPerSecond",
     blockNumber: toBlock,
   });
 

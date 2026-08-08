@@ -59,17 +59,23 @@ call), but every event that DOES touch principal or debt (`Borrow`,
 `Repay`, `CollateralAppliedToDebt`, `Liquidate`) reports the resulting
 values directly, and pending interest since the last such checkpoint is a
 closed-form function of principal, elapsed time, and the CURRENT
-`interestRateBpsPerSecond` (`LendingPool._pendingInterest` reads the live
-storage rate, not a historical one). Read literally, this means a rate
-change (`ParamChanged`) retroactively changes the effective rate for the
-ENTIRE backdated elapsed window since a position's last accrual
-checkpoint, not just the time after the change, this pool has no
-time-weighted/segmented accrual. That's a real, slightly surprising
-property of the deployed contract, not a report-builder bug, so the report
-builder matches it exactly (`backend/src/audit/reconstruct.ts`'s
-`projectDebt` uses the live `interestRateBpsPerSecond()` read at the
-report's block, the same value `currentDebt()` itself would use). This is
-why the self-cross-check in Part 3 recomputes projected debt from the last
+`currentInterestRateBpsPerSecond()` (`LendingPool._pendingInterest` reads
+the live, utilization-derived rate, not a historical one, see
+`LendingPool.sol`'s curve header for the formula). Read literally, this
+means the effective rate for the ENTIRE backdated elapsed window since a
+position's last accrual checkpoint is whatever the rate happens to be
+RIGHT NOW, not a time-weighted/segmented average of what it actually was
+at each moment in between, this pool has no time-weighted/segmented
+accrual. Since the rate is a function of live utilization
+(`currentUtilizationBps()`), this isn't only true after an owner
+`ParamChanged` (base rate/slope/kink) any more, ordinary borrow/repay/
+deposit/withdraw activity from ANY user moves utilization, and therefore
+the rate, constantly. That's a real, slightly surprising property of the
+deployed contract, not a report-builder bug, so the report builder
+matches it exactly (`backend/src/audit/reconstruct.ts`'s `projectDebt`
+uses the live `currentInterestRateBpsPerSecond()` read at the report's
+block, the same value `currentDebt()` itself would use). This is why the
+self-cross-check in Part 3 recomputes projected debt from the last
 on-chain checkpoint rather than assuming the last event's `remainingDebt`
 is still current, that would silently drift for any position with debt
 still open when the report is generated.

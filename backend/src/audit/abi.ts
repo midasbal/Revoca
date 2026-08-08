@@ -26,7 +26,7 @@ export const LENDING_POOL_READ_ABI = parseAbi([
   "function complianceGate() external view returns (address)",
   "function policy() external view returns (address)",
   "function guardian() external view returns (address)",
-  "function interestRateBpsPerSecond() external view returns (uint256)",
+  "function currentInterestRateBpsPerSecond() external view returns (uint256)",
   "function positions(address) external view returns (uint256 collateral, uint256 principal, uint256 accruedInterest, uint256 lastAccrualTimestamp)",
   "function currentDebt(address) external view returns (uint256)",
 ]);

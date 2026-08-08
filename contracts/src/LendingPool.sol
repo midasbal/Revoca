@@ -43,6 +43,23 @@ import {CompliancePolicy} from "./CompliancePolicy.sol";
  *    repayment gets a slightly-off share of interest that was "in flight."
  *    Accepted as a known, documented simplification.
  *
+ * 2b. UTILIZATION-BASED INTEREST, NOT TIME-WEIGHTED ACROSS RATE CHANGES.
+ *    The per-second rate is a function of live utilization
+ *    (`totalPrincipalOutstanding / totalPooledAssets()`), a standard
+ *    two-slope curve (see `currentInterestRateBpsPerSecond` below), so it
+ *    moves every time a borrow/repay/deposit/withdraw changes utilization.
+ *    A position's pending interest since its last accrual checkpoint is
+ *    still computed as `principal * elapsedSeconds * rate`, using the
+ *    CURRENT rate at the moment accrual is realized, not a time-weighted
+ *    average of whatever the rate was at each moment during the elapsed
+ *    interval. This is the same lazy-realization style as simplification
+ *    #2 above (interest is only ever realized at an interaction point, not
+ *    continuously), extended to a rate that can itself move between
+ *    interactions. Accepted as a known, documented simplification, not
+ *    hidden: `backend/src/audit/reconstruct.ts`'s self-cross-check makes
+ *    the identical approximation for the identical reason, see its
+ *    `projectPendingInterest` comment.
+ *
  * 3. Liquidation always requires the liquidator to repay the FULL
  *    outstanding debt (no partial liquidation). If a position's collateral
  *    has fallen below `debt + bonus` (e.g. a severe tier downgrade after
@@ -89,11 +106,43 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
     // CompliancePolicy).
     // ---------------------------------------------------------------------
 
-    /// @notice Simple linear interest: basis points of PRINCIPAL accrued per second.
-    /// @dev Applied only to principal (never to already-accrued interest),
-    /// so interest is genuinely linear/non-compounding within a position's
-    /// life, matching the "simple linear interest" requirement exactly.
-    uint256 public interestRateBpsPerSecond;
+    /**
+     * @notice Utilization-based interest curve, a standard two-slope
+     * (Aave/Compound-style) model, replacing the former flat rate.
+     * `currentInterestRateBpsPerSecond()` is the live per-second bps rate
+     * applied to PRINCIPAL only (never to already-accrued interest, so
+     * interest stays linear/non-compounding within a position's life,
+     * exactly as before), as a function of `currentUtilizationBps()`:
+     *
+     *   - utilization <= kinkUtilizationBps:
+     *       rate = baseRateBpsPerSecond
+     *            + slope1BpsPerSecond * utilization / kinkUtilizationBps
+     *   - utilization > kinkUtilizationBps:
+     *       rate = baseRateBpsPerSecond + slope1BpsPerSecond
+     *            + slope2BpsPerSecond * (utilization - kinkUtilizationBps)
+     *              / (BPS_DENOMINATOR - kinkUtilizationBps)
+     *
+     * `baseRateBpsPerSecond` is the rate at 0% utilization (a pool with no
+     * borrows still costs lenders nothing extra, but also earns nothing).
+     * `slope1BpsPerSecond` ramps the rate up to `baseRateBpsPerSecond +
+     * slope1BpsPerSecond` exactly at the kink, the "normal" operating
+     * range. `slope2BpsPerSecond` ramps steeper beyond the kink, an
+     * incentive for lenders to add liquidity (and borrowers to repay)
+     * before the pool runs dry. Setting `kinkUtilizationBps ==
+     * BPS_DENOMINATOR` (100%) disables the second segment entirely (it's
+     * never reached, since utilization is capped at 100% by construction,
+     * see `currentUtilizationBps`), collapsing this to a single-slope
+     * model, the kink is genuinely optional. Both segments are
+     * non-negative and utilization is monotonic in both principal
+     * outstanding and idle liquidity, so the curve itself is monotonic:
+     * more borrowing relative to pool size never lowers the rate.
+     */
+    uint256 public baseRateBpsPerSecond;
+    uint256 public slope1BpsPerSecond;
+    uint256 public slope2BpsPerSecond;
+
+    /// @notice Utilization (bps of BPS_DENOMINATOR) at which slope2 starts applying. Must be in (0, BPS_DENOMINATOR].
+    uint16 public kinkUtilizationBps;
 
     /// @notice Bonus (in bps of debt repaid) a liquidator receives on top of debt value, from the seized collateral.
     uint256 public liquidationBonusBps;
@@ -178,6 +227,7 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
     error PositionHealthy(address borrower);
     error NoDebt(address borrower);
     error NotGuardian(address caller);
+    error InvalidKinkUtilization(uint16 kinkUtilizationBps);
 
     /// @notice The RevocationGuardian authorized to call `applyCollateralToDebt`. Owner-settable post-deployment since the guardian is deployed after (and needs) this pool's address.
     address public guardian;
@@ -194,7 +244,7 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
         ICountrySource countrySource_,
         CompliancePolicy policy_,
         address initialOwner,
-        uint256 interestRateBpsPerSecond_,
+        uint256 baseRateBpsPerSecond_,
         uint256 liquidationBonusBps_
     ) Ownable(initialOwner) {
         asset = asset_;
@@ -202,8 +252,14 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
         tierOracle = tierOracle_;
         countrySource = countrySource_;
         policy = policy_;
-        interestRateBpsPerSecond = interestRateBpsPerSecond_;
+        baseRateBpsPerSecond = baseRateBpsPerSecond_;
         liquidationBonusBps = liquidationBonusBps_;
+        // slope1BpsPerSecond/slope2BpsPerSecond default to 0 (Solidity
+        // default), so a freshly-deployed pool behaves as a flat-rate pool
+        // at baseRateBpsPerSecond until the owner opts into a curve via
+        // the setters below, matching the exact prior flat-rate behavior
+        // out of the box.
+        kinkUtilizationBps = BPS_DENOMINATOR; // 100%, i.e. no slope2 segment until configured otherwise
     }
 
     // ---------------------------------------------------------------------
@@ -224,9 +280,26 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
         _unpause();
     }
 
-    function setInterestRateBpsPerSecond(uint256 newRate) external onlyOwner {
-        emit ParamChanged("interestRateBpsPerSecond", interestRateBpsPerSecond, newRate);
-        interestRateBpsPerSecond = newRate;
+    function setBaseRateBpsPerSecond(uint256 newRate) external onlyOwner {
+        emit ParamChanged("baseRateBpsPerSecond", baseRateBpsPerSecond, newRate);
+        baseRateBpsPerSecond = newRate;
+    }
+
+    function setSlope1BpsPerSecond(uint256 newSlope) external onlyOwner {
+        emit ParamChanged("slope1BpsPerSecond", slope1BpsPerSecond, newSlope);
+        slope1BpsPerSecond = newSlope;
+    }
+
+    function setSlope2BpsPerSecond(uint256 newSlope) external onlyOwner {
+        emit ParamChanged("slope2BpsPerSecond", slope2BpsPerSecond, newSlope);
+        slope2BpsPerSecond = newSlope;
+    }
+
+    /// @notice Owner-configurable, must be in (0, BPS_DENOMINATOR]. BPS_DENOMINATOR (100%) disables the slope2 segment, see this contract's curve header.
+    function setKinkUtilizationBps(uint16 newKink) external onlyOwner {
+        if (newKink == 0 || newKink > BPS_DENOMINATOR) revert InvalidKinkUtilization(newKink);
+        emit ParamChanged("kinkUtilizationBps", kinkUtilizationBps, newKink);
+        kinkUtilizationBps = newKink;
     }
 
     function setLiquidationBonusBps(uint256 newBonus) external onlyOwner {
@@ -317,16 +390,44 @@ contract LendingPool is Ownable, Pausable, ReentrancyGuard {
         return pos.principal + pos.accruedInterest + _pendingInterest(pos);
     }
 
+    /// @notice Live pool utilization in bps: borrowed principal as a share of total pooled assets. 0 if the pool holds no assets at all (never borrowed against, never deposited into).
+    function currentUtilizationBps() public view returns (uint16) {
+        uint256 pooled = totalPooledAssets();
+        if (pooled == 0) return 0;
+        // totalPrincipalOutstanding <= totalPooledAssets always, by
+        // construction (totalPooledAssets = idleLiquidity +
+        // totalPrincipalOutstanding, idleLiquidity >= 0), so this is
+        // always <= BPS_DENOMINATOR, no clamping needed.
+        return uint16(Math.mulDiv(totalPrincipalOutstanding, BPS_DENOMINATOR, pooled));
+    }
+
+    /// @notice The live per-second bps interest rate at current utilization, see this contract's curve header for the formula.
+    function currentInterestRateBpsPerSecond() public view returns (uint256) {
+        uint16 utilizationBps = currentUtilizationBps();
+
+        if (utilizationBps <= kinkUtilizationBps) {
+            return baseRateBpsPerSecond + Math.mulDiv(slope1BpsPerSecond, utilizationBps, kinkUtilizationBps);
+        }
+
+        uint256 rateAtKink = baseRateBpsPerSecond + slope1BpsPerSecond;
+        uint256 excessUtilizationBps = utilizationBps - kinkUtilizationBps;
+        uint256 slope2Range = BPS_DENOMINATOR - kinkUtilizationBps;
+        return rateAtKink + Math.mulDiv(slope2BpsPerSecond, excessUtilizationBps, slope2Range);
+    }
+
     function _pendingInterest(BorrowerPosition storage pos) private view returns (uint256) {
         if (pos.principal == 0) return 0;
         uint256 elapsed = block.timestamp - pos.lastAccrualTimestamp;
-        // `elapsed * interestRateBpsPerSecond` first (both realistically
-        // small, seconds elapsed and a bps rate, so this can't
-        // meaningfully overflow), then let mulDiv's 512-bit intermediate
-        // handle `pos.principal * (that product)` safely, rather than
+        // `elapsed * rate` first (both realistically small, seconds
+        // elapsed and a bps-per-second rate, so this can't meaningfully
+        // overflow), then let mulDiv's 512-bit intermediate handle
+        // `pos.principal * (that product)` safely, rather than
         // pre-multiplying pos.principal (potentially large) by elapsed
-        // ourselves and losing mulDiv's overflow protection entirely.
-        return Math.mulDiv(pos.principal, elapsed * interestRateBpsPerSecond, BPS_DENOMINATOR);
+        // ourselves and losing mulDiv's overflow protection entirely. Uses
+        // the CURRENT rate for the WHOLE elapsed interval, see this
+        // contract's header, simplification #2b.
+        uint256 rate = currentInterestRateBpsPerSecond();
+        return Math.mulDiv(pos.principal, elapsed * rate, BPS_DENOMINATOR);
     }
 
     /// @dev Realizes pending interest into `accruedInterest` and resets the accrual checkpoint. Called at the start of every state-changing borrower function.
