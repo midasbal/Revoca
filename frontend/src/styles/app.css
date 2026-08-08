@@ -29,19 +29,6 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Faint fixed-line texture on the page ground, evokes ruled register
-   paper without becoming a broadsheet grid, purely atmospheric, never
-   load-bearing for layout. */
-body {
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent,
-    transparent 27px,
-    var(--rule) 27px,
-    var(--rule) 28px
-  );
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -81,15 +68,36 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
-/* Page shell                                                            */
+/* Console shell: the record's environment, not empty slate. The ambient */
+/* field is a fixed layer behind everything, the layout grid sits above  */
+/* it (a real stacking context, isolate keeps the two from interleaving  */
+/* with anything else), rails flank the record, never compete with it.   */
 /* -------------------------------------------------------------------- */
 
-.page {
+.console {
+  position: relative;
   min-height: 100%;
-  display: flex;
-  align-items: flex-start;
+  isolation: isolate;
+}
+
+.console__layout {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 38rem) minmax(0, 14rem);
   justify-content: center;
-  padding: clamp(1.25rem, 5vw, 4rem) 1rem;
+  align-items: start;
+  gap: clamp(1.5rem, 3vw, 3.5rem);
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: clamp(1.25rem, 5vw, 4rem) 1.25rem;
+}
+
+@media (max-width: 64rem) {
+  .console__layout {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 42rem;
+  }
 }
 
 .record {
@@ -102,6 +110,228 @@ button {
     0 1px 2px rgba(27, 35, 33, 0.06),
     0 10px 28px rgba(27, 35, 33, 0.06);
   padding: clamp(1.25rem, 3.4vw, 2.25rem);
+}
+
+/* -------------------------------------------------------------------- */
+/* Ambient field: the console's ground. A fine grid standing in for an   */
+/* instrument surface, a brief brightening sweep on every real poll, an  */
+/* amber vignette that settles in, never flashes, when the record is     */
+/* struck. Fixed to the viewport, never the layout's scroll length, so   */
+/* it reads as the room the record sits in, not page background art.    */
+/* -------------------------------------------------------------------- */
+
+.ambient-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ambient-field__drift {
+  position: absolute;
+  inset: -60px;
+  animation: ambient-drift 140s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-field__drift {
+    animation: none;
+  }
+}
+
+@keyframes ambient-drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(-56px, -56px);
+  }
+}
+
+.ambient-field__grid,
+.ambient-field__sweep {
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(to right, var(--rule) 0, var(--rule) 1px, transparent 1px, transparent 56px),
+    repeating-linear-gradient(to bottom, var(--rule) 0, var(--rule) 1px, transparent 1px, transparent 56px);
+}
+
+.ambient-field__sweep {
+  background-image:
+    repeating-linear-gradient(to right, var(--rule-strong) 0, var(--rule-strong) 1px, transparent 1px, transparent 56px),
+    repeating-linear-gradient(to bottom, var(--rule-strong) 0, var(--rule-strong) 1px, transparent 1px, transparent 56px);
+}
+
+.ambient-field__vignette {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 var(--struck-wash);
+  transition: box-shadow 1.4s var(--ease-confident);
+}
+
+.ambient-field--struck .ambient-field__vignette {
+  box-shadow: inset 0 0 12rem var(--struck-wash);
+}
+
+/* -------------------------------------------------------------------- */
+/* Console rails: real registry context, not filler.                     */
+/* -------------------------------------------------------------------- */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding-top: var(--space-2);
+}
+
+.rail--registry {
+  position: relative;
+}
+
+.rail__watermark {
+  position: absolute;
+  top: -1.5rem;
+  right: -2.5rem;
+  width: 15rem;
+  height: 15rem;
+  color: var(--ink);
+  opacity: 0.05;
+  pointer-events: none;
+}
+
+.rail__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rail__block--addresses {
+  gap: var(--space-2);
+}
+
+.rail__label {
+  color: var(--ink-faint);
+}
+
+.rail__value {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.rail__value--lg {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+}
+
+.rail__value--faint {
+  color: var(--ink-faint);
+}
+
+.rail__submeta {
+  margin: 0;
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+}
+
+.rail__watching {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.rail__watching-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2.6s var(--ease-confident) infinite;
+}
+
+.rail__prose {
+  margin: 0;
+  max-width: 15rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.rail-address {
+  appearance: none;
+  border: none;
+  background: none;
+  width: 100%;
+  padding: var(--space-1) 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-bottom: 1px solid var(--rule);
+  transition:
+    color 160ms var(--ease-confident),
+    border-color 160ms var(--ease-confident);
+}
+
+.rail-address:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.rail-address:active {
+  transform: scale(0.99);
+}
+
+.rail-address__label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.rail-address__value {
+  font-size: 0.75rem;
+}
+
+@media (max-width: 64rem) {
+  .rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-5);
+    padding-top: 0;
+  }
+
+  .rail--status {
+    order: -1;
+  }
+
+  .rail__watermark,
+  .rail__prose {
+    display: none;
+  }
+
+  .rail__block--addresses {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+  }
+
+  .rail-address {
+    width: auto;
+    border-bottom: none;
+  }
 }
 
 /* -------------------------------------------------------------------- */
@@ -309,12 +539,45 @@ button {
 }
 
 .ledger__row {
+  position: relative;
   display: grid;
   grid-template-columns: 1.75rem 1fr auto;
   align-items: baseline;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: var(--space-3) 0 var(--space-3) var(--space-3);
+  margin-left: calc(-1 * var(--space-3));
   border-bottom: 1px solid var(--rule);
+  border-radius: var(--radius-chip);
+  transition:
+    background-color 160ms var(--ease-confident),
+    transform 160ms var(--ease-confident);
+}
+
+.ledger__row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  width: 2px;
+  background: var(--struck);
+  opacity: 0;
+  transition: opacity 160ms var(--ease-confident);
+}
+
+.ledger__row:hover {
+  background: var(--paper-recessed);
+  transform: translateX(2px);
+}
+
+.ledger__row:hover::before {
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ledger__row:hover {
+    transform: none;
+  }
 }
 
 .ledger__row:last-child {
@@ -397,7 +660,8 @@ button {
   transition:
     background-color 160ms var(--ease-confident),
     color 160ms var(--ease-confident),
-    border-color 160ms var(--ease-confident);
+    border-color 160ms var(--ease-confident),
+    transform 120ms var(--ease-confident);
 }
 
 .action__button:hover:not(:disabled) {
@@ -405,9 +669,19 @@ button {
   color: var(--paper-raised);
 }
 
+.action__button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 .action__button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action__button:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .action__button--strike {

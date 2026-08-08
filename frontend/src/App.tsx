@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { RingMark } from './components/RingMark';
 import { Ledger } from './components/Ledger';
+import { AmbientField } from './components/AmbientField';
+import { StatusRail } from './components/StatusRail';
+import { RegistryRail } from './components/RegistryRail';
+import { TickingValue } from './components/TickingValue';
 import { usePosition } from './hooks/usePosition';
 import { useLedger } from './hooks/useLedger';
 import { useStrikePhase } from './hooks/useStrikePhase';
 import { usePrevious } from './hooks/usePrevious';
+import { useClock } from './hooks/useClock';
 import { DEMO_BORROWER } from './deployment';
 import { GuardianReason, GuardianState, explorerAddressUrl, formatAmount, formatBps, shortAddress } from './chain';
 
@@ -14,15 +19,6 @@ const EASE_CONFIDENT = [0.16, 1, 0.3, 1] as const;
 const DEMO_SERVER_URL = (import.meta.env.VITE_DEMO_SERVER_URL as string | undefined) ?? 'http://localhost:8787';
 
 type ActionKind = 'idle' | 'strike' | 'advance';
-
-function useClock(): number {
-  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  return now;
-}
 
 export default function App() {
   const position = usePosition();
@@ -121,149 +117,158 @@ export default function App() {
   }, [position, now]);
 
   return (
-    <div className="page">
-      <main className="record">
-        <div className="record__header">
-          <span className="eyebrow">Revoca &middot; Compliance Registry</span>
-          <span className="eyebrow record__live">
-            <span className="record__live-dot" aria-hidden="true" />
-            Live, Monad testnet
-          </span>
-        </div>
+    <div className="console">
+      <AmbientField pulseKey={position.status === 'ready' ? position.data.polledAt : null} struck={struck} />
+      <div className="console__layout">
+        <StatusRail position={position} now={now} />
 
-        <div className="seal-band">
-          <div className="seal-band__ring">
-            <RingMark phase={position.status === 'ready' ? phase : 'valid'} prefersReduced={prefersReduced} onStrikeComplete={completeStrike} />
+        <main className="record">
+          <div className="record__header">
+            <span className="eyebrow">Revoca &middot; Compliance Registry</span>
+            <span className="eyebrow record__live">
+              <span className="record__live-dot" aria-hidden="true" />
+              Live, Monad testnet
+            </span>
           </div>
 
-          <div className="field seal-band__standing">
-            <p className="eyebrow field__label">Standing</p>
-            {position.status === 'ready' ? (
-              <>
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.p
-                    key={phase === 'struck' ? 'struck' : 'valid'}
-                    className={phase === 'struck' ? 'field__value field__value--struck' : 'field__value field__value--valid'}
-                    initial={phase === 'struck' && wordLive && !prefersReduced ? { opacity: 0, y: 4 } : false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, ease: EASE_CONFIDENT, delay: phase === 'struck' && wordLive ? 0.28 : 0 }}
-                  >
-                    {phase === 'struck' ? 'STRUCK' : 'VALID'}
-                  </motion.p>
-                </AnimatePresence>
-                <p className="field__meta">
-                  {struck ? (
-                    <>
-                      Reason: <span className="mono">{GuardianReason[position.data.guardianReason] ?? 'UNKNOWN'}</span>
-                      {position.data.guardianState === GuardianState.RESOLVED && ' · Unwind resolved'}
-                    </>
-                  ) : (
-                    <>Attested compliant and fresh, no unwind in progress</>
-                  )}
-                </p>
-              </>
-            ) : (
-              <p className="field__value field__value--loading">&hellip;</p>
+          <div className="seal-band">
+            <div className="seal-band__ring">
+              <RingMark phase={position.status === 'ready' ? phase : 'valid'} prefersReduced={prefersReduced} onStrikeComplete={completeStrike} />
+            </div>
+
+            <div className="field seal-band__standing">
+              <p className="eyebrow field__label">Standing</p>
+              {position.status === 'ready' ? (
+                <>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.p
+                      key={phase === 'struck' ? 'struck' : 'valid'}
+                      className={phase === 'struck' ? 'field__value field__value--struck' : 'field__value field__value--valid'}
+                      initial={phase === 'struck' && wordLive && !prefersReduced ? { opacity: 0, y: 4 } : false}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, ease: EASE_CONFIDENT, delay: phase === 'struck' && wordLive ? 0.28 : 0 }}
+                    >
+                      {phase === 'struck' ? 'STRUCK' : 'VALID'}
+                    </motion.p>
+                  </AnimatePresence>
+                  <p className="field__meta">
+                    {struck ? (
+                      <>
+                        Reason: <span className="mono">{GuardianReason[position.data.guardianReason] ?? 'UNKNOWN'}</span>
+                        {position.data.guardianState === GuardianState.RESOLVED && ' · Unwind resolved'}
+                      </>
+                    ) : (
+                      <>Attested compliant and fresh, no unwind in progress</>
+                    )}
+                  </p>
+                </>
+              ) : (
+                <p className="field__value field__value--loading">&hellip;</p>
+              )}
+            </div>
+          </div>
+
+          <p className="record__number">
+            Record No.{' '}
+            <strong className="mono">
+              <a href={explorerAddressUrl(DEMO_BORROWER)} target="_blank" rel="noreferrer">
+                {shortAddress(DEMO_BORROWER)}
+              </a>
+            </strong>
+          </p>
+
+          {position.status === 'loading' && <p className="notice">Reading live position&hellip;</p>}
+          {position.status === 'error' && <p className="notice">Could not read the chain: {position.message}</p>}
+
+          {position.status === 'ready' && (
+            <>
+              <div className="ruled">
+                <span className="eyebrow ruled__label">
+                  Attested tier {position.data.tier} / subtier {position.data.subTier}
+                </span>
+              </div>
+
+              <div className="stats">
+                <div className="stat">
+                  <p className="eyebrow stat__label">Collateral ratio</p>
+                  <p className="stat__value">
+                    <TickingValue value={formatBps(position.data.ratioBps)} />
+                  </p>
+                </div>
+                <div className="stat">
+                  <p className="eyebrow stat__label">Debt</p>
+                  <p className="stat__value">
+                    <TickingValue value={formatAmount(position.data.debt)} />
+                    <span className="stat__unit">rtUSD</span>
+                  </p>
+                </div>
+                <div className="stat">
+                  <p className="eyebrow stat__label">Collateral</p>
+                  <p className="stat__value">
+                    <TickingValue value={formatAmount(position.data.collateral)} />
+                    <span className="stat__unit">rtUSD</span>
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="ruled">
+            <span className="eyebrow ruled__label">Ledger</span>
+          </div>
+          <Ledger entries={entries} nowSeconds={now} />
+
+          <div className="action">
+            {readyToStrike && (
+              <button
+                type="button"
+                className="action__button action__button--strike"
+                disabled={pending !== 'idle'}
+                onClick={() => void callServer('/api/strike', 'strike')}
+              >
+                {pending === 'strike' ? 'Striking record…' : 'Strike this record'}
+              </button>
             )}
+
+            {position.status === 'ready' && position.data.guardianState === GuardianState.FLAGGED && (
+              <button
+                type="button"
+                className="action__button"
+                disabled={pending !== 'idle' || (graceRemaining !== null && graceRemaining > 0)}
+                onClick={() => void callServer('/api/advance', 'advance')}
+              >
+                {pending === 'advance' ? 'Advancing the unwind…' : 'Advance the unwind'}
+              </button>
+            )}
+
+            {position.status === 'ready' && position.data.guardianState === GuardianState.UNWINDING && (
+              <button
+                type="button"
+                className="action__button"
+                disabled={pending !== 'idle'}
+                onClick={() => void callServer('/api/advance', 'advance')}
+              >
+                {pending === 'advance' ? 'Advancing the unwind…' : 'Complete the unwind'}
+              </button>
+            )}
+
+            {position.status === 'ready' && position.data.guardianState === GuardianState.RESOLVED && !readyToStrike && (
+              <p className="action__status">Record resolved, still non-compliant, this position is closed.</p>
+            )}
+
+            {graceRemaining !== null && graceRemaining > 0 && (
+              <p className="action__status">
+                Grace ends in <span className="action__countdown mono">{graceRemaining}s</span>, the record may still be
+                reinstated
+              </p>
+            )}
+
+            {actionError && <p className="action__status action__status--error">{actionError}</p>}
           </div>
-        </div>
+        </main>
 
-        <p className="record__number">
-          Record No.{' '}
-          <strong className="mono">
-            <a href={explorerAddressUrl(DEMO_BORROWER)} target="_blank" rel="noreferrer">
-              {shortAddress(DEMO_BORROWER)}
-            </a>
-          </strong>
-        </p>
-
-        {position.status === 'loading' && <p className="notice">Reading live position&hellip;</p>}
-        {position.status === 'error' && <p className="notice">Could not read the chain: {position.message}</p>}
-
-        {position.status === 'ready' && (
-          <>
-            <div className="ruled">
-              <span className="eyebrow ruled__label">
-                Attested tier {position.data.tier} / subtier {position.data.subTier}
-              </span>
-            </div>
-
-            <div className="stats">
-              <div className="stat">
-                <p className="eyebrow stat__label">Collateral ratio</p>
-                <p className="stat__value">{formatBps(position.data.ratioBps)}</p>
-              </div>
-              <div className="stat">
-                <p className="eyebrow stat__label">Debt</p>
-                <p className="stat__value">
-                  {formatAmount(position.data.debt)}
-                  <span className="stat__unit">rtUSD</span>
-                </p>
-              </div>
-              <div className="stat">
-                <p className="eyebrow stat__label">Collateral</p>
-                <p className="stat__value">
-                  {formatAmount(position.data.collateral)}
-                  <span className="stat__unit">rtUSD</span>
-                </p>
-              </div>
-            </div>
-          </>
-        )}
-
-        <div className="ruled">
-          <span className="eyebrow ruled__label">Ledger</span>
-        </div>
-        <Ledger entries={entries} nowSeconds={now} />
-
-        <div className="action">
-          {readyToStrike && (
-            <button
-              type="button"
-              className="action__button action__button--strike"
-              disabled={pending !== 'idle'}
-              onClick={() => void callServer('/api/strike', 'strike')}
-            >
-              {pending === 'strike' ? 'Striking record…' : 'Strike this record'}
-            </button>
-          )}
-
-          {position.status === 'ready' && position.data.guardianState === GuardianState.FLAGGED && (
-            <button
-              type="button"
-              className="action__button"
-              disabled={pending !== 'idle' || (graceRemaining !== null && graceRemaining > 0)}
-              onClick={() => void callServer('/api/advance', 'advance')}
-            >
-              {pending === 'advance' ? 'Advancing the unwind…' : 'Advance the unwind'}
-            </button>
-          )}
-
-          {position.status === 'ready' && position.data.guardianState === GuardianState.UNWINDING && (
-            <button
-              type="button"
-              className="action__button"
-              disabled={pending !== 'idle'}
-              onClick={() => void callServer('/api/advance', 'advance')}
-            >
-              {pending === 'advance' ? 'Advancing the unwind…' : 'Complete the unwind'}
-            </button>
-          )}
-
-          {position.status === 'ready' && position.data.guardianState === GuardianState.RESOLVED && !readyToStrike && (
-            <p className="action__status">Record resolved, still non-compliant, this position is closed.</p>
-          )}
-
-          {graceRemaining !== null && graceRemaining > 0 && (
-            <p className="action__status">
-              Grace ends in <span className="action__countdown mono">{graceRemaining}s</span>, the record may still be
-              reinstated
-            </p>
-          )}
-
-          {actionError && <p className="action__status action__status--error">{actionError}</p>}
-        </div>
-      </main>
+        <RegistryRail />
+      </div>
     </div>
   );
 }

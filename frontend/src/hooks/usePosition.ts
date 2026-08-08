@@ -14,7 +14,10 @@ export interface PositionSnapshot {
   guardianState: number;
   guardianReason: number;
   graceEndsAt: bigint;
+  blockNumber: bigint;
   blockTimestamp: bigint;
+  /** Wall-clock time (ms) this snapshot landed, for the console rail's "last polled" readout, not a chain value. */
+  polledAt: number;
 }
 
 export type PositionState =
@@ -62,7 +65,9 @@ async function fetchSnapshot(): Promise<PositionSnapshot> {
     guardianState: guardianPosition[0],
     guardianReason: guardianPosition[1],
     graceEndsAt: guardianPosition[3],
+    blockNumber: block.number ?? 0n,
     blockTimestamp: block.timestamp,
+    polledAt: Date.now(),
   };
 }
 
