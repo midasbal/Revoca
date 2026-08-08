@@ -49,21 +49,48 @@ Both live behind the existing `IComplianceGate`/`ITierOracle` seam
 (`contracts/src/interfaces/`), exactly as designed, adopting the on-chain
 gate requires no changes to `LendingPool` or `RevocationGuardian`.
 
-**Open blocker.** Registering a pool with the validator, `POST
-/api/cooperate/validator/register`, currently fails on Monad with API
-code `0001`, "Invalid contract owner signature", for every scheme tried
-so far by builders working against this validator, including from a
-confirmed real on-chain owner. The exact signing scheme the API expects
-is unconfirmed. Two candidates have been identified by comparing
+**Resolved, and built: `contracts/src/HybridComplianceGate.sol`.** The
+registration signature blocker described below is resolved (see
+docs/OPEN_QUESTIONS.md), and Design A is proven live on Monad testnet with
+real transactions (see docs/DESIGN_A_SPIKE.md, gitignored, local). The
+real hybrid `IComplianceGate` is now implemented: `HybridComplianceGate`
+wraps a pool's gate mode as an EXPLICIT, owner-set configuration,
+`ValidatorGated` (calls `validator.complianceVerify(pool, user)` directly,
+on-chain, fails closed to `false` if that call reverts for any reason) or
+`AttestorGated` (delegates to `ComplianceRegistry`). The mode is a
+configuration decision made at setup, never inferred from a revert at call
+time, doing so would let any cause of a validator failure silently
+downgrade a `ValidatorGated` pool to the weaker attestor check. Tier
+values still come from `ComplianceRegistry`'s `ITierOracle.tierOf`
+always, independent of gate mode, since `complianceVerify` only ever
+returns a pass/fail boolean. Covered by
+`contracts/test/HybridComplianceGate.t.sol` (mock validator: true, false,
+and revert-fails-closed) and
+`contracts/test/HybridComplianceGateMonadFork.t.sol` (real integration
+test against the real validator on live Monad testnet, using the
+already-registered probe pool from docs/DESIGN_A_SPIKE.md, no mock data).
+Not yet done: registering the real `LendingPool` with the validator, that
+is a later deploy step once the pool contract is stable, see
+docs/ROADMAP.md.
+
+**Formerly an open blocker, now resolved.** Registering a pool with the
+validator, `POST /api/cooperate/validator/register`, had failed on Monad
+with API code `0001`, "Invalid contract owner signature", for every
+scheme tried so far by builders working against this validator, including
+from a confirmed real on-chain owner. The exact signing scheme the API
+expects was unconfirmed. Two candidates had been identified by comparing
 Cleanverse's two integration documents: EIP-191 `personal_sign` of the
 raw, lowercase `chain + contract_address` string (the originally
-documented scheme, and what this repo currently implements in
-`backend/src/cleanverse/signature.ts`), versus `personal_sign` of the
-pre-hashed `keccak256(chain + contract_address)` (the more literal
-reading of the newer integration guide's wording). Resolving this is the
-first Design A task in the build window. Until it's resolved, the
-attestor path is what actually runs, it is already built and tested, see
-`contracts/src/ComplianceRegistry.sol` and `backend/src/attestor/`.
+documented scheme, and what `backend/src/cleanverse/signature.ts`
+implements), versus `personal_sign` of the pre-hashed
+`keccak256(chain + contract_address)` (the more literal reading of the
+newer integration guide's wording). A Cleanverse team member confirmed
+the raw-string scheme is correct (see docs/OPEN_QUESTIONS.md), and this
+session proved it end to end with a real `validator/grant` and
+`validator/register` against Monad testnet (see docs/DESIGN_A_SPIKE.md
+section 5). The attestor path (`contracts/src/ComplianceRegistry.sol`,
+`backend/src/attestor/`) remains permanently required as the tier-value
+source regardless.
 
 **Chain scope.** Cleanverse deploys the validator at the same address on
 every chain, so once the registration signature is resolved, this

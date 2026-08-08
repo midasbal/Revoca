@@ -155,11 +155,14 @@ Every position moves through four states:
 
 ## What's built and tested
 
-Verified locally before writing this document: `forge test` passes 129 tests
-across 8 suites in `contracts/`, and the backend's `vitest` suite passes 86
-tests with 1 intentionally skipped (it needs a genuine encrypted response
-from the live Cleanverse sandbox to validate the AES round-trip against real
-data, not just the documented spec).
+Verified locally before writing this document: `forge test` passes 146 tests
+across 10 suites in `contracts/` (142 of those plus 1 suite-level skip when
+`MONAD_TESTNET_RPC` isn't available to `forge`, that one suite is a real,
+no-mock-data integration test against the live Monad testnet validator, see
+`contracts/test/HybridComplianceGateMonadFork.t.sol`), and the backend's
+`vitest` suite passes 86 tests with 1 intentionally skipped (it needs a
+genuine encrypted response from the live Cleanverse sandbox to validate the
+AES round-trip against real data, not just the documented spec).
 
 **Contracts** (`contracts/src/`):
 - `LendingPool.sol`, deposit, borrow, repay, withdraw, liquidate, tier-scaled
@@ -171,6 +174,14 @@ data, not just the documented spec).
   for every eligibility and risk parameter the rest of the system reads.
 - `IComplianceGate` / `ITierOracle` / `ICountrySource`, the seams described
   above.
+- `HybridComplianceGate.sol`, the real Design A/B hybrid gate: an
+  owner-set, explicit `ValidatorGated`/`AttestorGated` mode (never
+  inferred from a revert), calls the real on-chain Validator directly in
+  `ValidatorGated` mode and fails closed to "not compliant" if that call
+  reverts for any reason, delegates to `ComplianceRegistry` in
+  `AttestorGated` mode. `ComplianceRegistry` remains the tier-value source
+  either way. Proven both offline (a mock validator: true, false, revert)
+  and against the real validator on live Monad testnet.
 
 **Backend** (`backend/src/`):
 - `cleanverse/`, the API client (AES encrypt/decrypt for encrypted
@@ -245,18 +256,19 @@ read-only calls (`query_apass`, `validator/verify`, and others) have been
 exercised against the real Cleanverse UAT sandbox. The following has not
 been done yet:
 
-- No deployment to the real Monad testnet.
-- No live encrypted write call (`generate_apass`, `update_status`,
-  `validator/register`, `validator/grant`, `validator/set_rule`, and
-  related endpoints) has been made against the sandbox. They're implemented
-  per the documented API spec, but our sandbox account's role and
-  permissions for them are unconfirmed, and this project's rule against
-  mock compliance data means they stay untested rather than faked.
+- No deployment of the real `LendingPool`/`RevocationGuardian`/
+  `ComplianceRegistry` stack to Monad testnet yet, still local `anvil`
+  only. A throwaway probe contract has been deployed to real Monad
+  testnet and successfully registered with Cleanverse's real on-chain
+  Validator, live encrypted write calls (`validator/grant`,
+  `validator/register`) have genuinely succeeded against the sandbox, see
+  `HybridComplianceGate.sol` below, but the real pool itself is not yet
+  deployed or registered.
 - The frontend does not exist yet, `frontend/` is a placeholder.
-- On-chain enforcement via a real Cleanverse Validator contract (Design A)
-  is not built. As explained above, the seam for it (`IComplianceGate` /
-  `ITierOracle` / `ICountrySource`) already exists and would not require
-  touching `LendingPool` or `RevocationGuardian`.
+- On-chain enforcement via the real Cleanverse Validator contract (Design
+  A) is implemented (`HybridComplianceGate.sol`, see below) and proven
+  against live Monad testnet state, but not yet wired into a real deployed
+  `LendingPool`.
 - The interest model is simple linear interest, not utilization-based.
   Liquidation is all-or-nothing (a liquidator must repay the full
   outstanding debt), not partial.
