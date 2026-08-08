@@ -297,7 +297,18 @@ export interface GenerateApassParams {
   customerId: string; // >= 12 chars, [A-Za-z0-9] only
   kycSource?: string;
   kycId?: string;
-  subTier?: number; // 1-99
+  /**
+   * Documented in docs/cleanverse.pdf as an integer 1-99, but CONFIRMED
+   * (Telegram, a Cleanverse team member, and re-confirmed empirically this
+   * session, see docs/DESIGN_A_SPIKE.md/docs/OPEN_QUESTIONS.md) that the
+   * live sandbox requires this as a STRING. Passing a number returns
+   * `code: "0000"` (a real transaction hash) but SILENTLY IGNORES subTier,
+   * the resulting A-Pass gets no subTier or a default one. Always pass a
+   * numeric string here (e.g. "80", not 80), and verify it actually took
+   * via query_apass (singular) afterward, never trust this call's success
+   * response alone.
+   */
+  subTier?: string; // 1-99, as a STRING, see above
   subGroup?: string; // 2 letters, case-sensitive
   override?: boolean; // default false
   expirationTime: number; // unix seconds
