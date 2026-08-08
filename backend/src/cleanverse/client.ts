@@ -17,6 +17,18 @@
  * Mutations are never retried automatically. Reads may retry once, and only
  * on a network-level failure (fetch throwing), never on an HTTP error status
  * or a business-error code.
+ *
+ * Encrypted-endpoint RESPONSES are not assumed to be encrypted, only
+ * REQUESTS are. Confirmed live against the real UAT sandbox (2026-08-08,
+ * see docs/DESIGN_A_SPIKE.md): a real `validator/grant` call, with a
+ * correctly AES-encrypted request body, returned `code: "0000"` and a
+ * PLAIN JSON object in `data` (not a base64 ciphertext string), even
+ * though `validator/grant` is documented as an encrypted endpoint. The
+ * request-side encryption is real and was confirmed working (Cleanverse
+ * decrypted and processed it correctly); the response simply wasn't
+ * encrypted back. `request()` below decrypts `data` only when it's
+ * actually a string, and passes it through as-is otherwise, rather than
+ * asserting every encrypted endpoint's response must be ciphertext.
  */
 import { randomUUID } from "node:crypto";
 import type { CleanverseConfig } from "./config.js";
@@ -133,13 +145,13 @@ export class CleanverseClient {
     }
 
     if (bodyMode === "encrypted") {
-      if (typeof envelope.data !== "string") {
-        throw new CleanverseResponseShapeError(
-          requestId,
-          `expected encrypted "data" to be a base64 string, got ${typeof envelope.data}`,
-        );
+      // See this file's header: the response isn't assumed to be
+      // encrypted just because the request was, decrypt only if `data`
+      // actually looks like ciphertext (a string).
+      if (typeof envelope.data === "string") {
+        return decryptBody<TData>(envelope.data, this.config.apiKey, opts.ivMode);
       }
-      return decryptBody<TData>(envelope.data, this.config.apiKey, opts.ivMode);
+      return envelope.data as TData;
     }
 
     return envelope.data as TData;
