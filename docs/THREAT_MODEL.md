@@ -35,6 +35,12 @@ borrower's A-Pass specifically to trigger a liquidation they profit from?
 `contracts/test/GriefingBound.t.sol`, 6 properties, 5 of them fuzzed at
 5000 runs each across every real collateral-ratio band, all passing.**
 
+**All profit figures below are NET** (collateral received minus the
+borrower's full debt the liquidator must repay to `liquidate()`, the
+liquidator's actual token balance change), never a gross bonus/collateral
+figure, see docs/GRIEFING_ANALYSIS.md's profit-definition section for the
+exact token flow.
+
 **Result:** a freeze cannot create liquidation profit that would not
 already exist without it. Two independent, structural reasons, not a
 grace-period timing argument:
@@ -53,8 +59,10 @@ grace-period timing argument:
    becomes reachable at all), the borrower's collateral has, by
    construction, already been fully drained to zero. A liquidator who
    then calls `liquidate()` seizes exactly zero collateral while still
-   paying the full remaining debt, a proven, exact, strict loss in every
-   swept case, not merely "no better than normal."
+   paying the full remaining debt: NET attacker profit is exactly
+   `0 - remainingDebt`, i.e. reduced to `<= 0` (strictly negative
+   whenever remainingDebt > 0), proven exactly in every swept case, not
+   merely bounded and not merely "no better than normal."
 
 The only positive liquidation profit reachable anywhere in the system is
 bounded exactly by `liquidationBonusBps` of the debt (capped by available
