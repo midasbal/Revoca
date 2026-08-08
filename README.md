@@ -155,8 +155,8 @@ Every position moves through four states:
 
 ## What's built and tested
 
-Verified locally before writing this document: `forge test` passes 146 tests
-across 10 suites in `contracts/` (142 of those plus 1 suite-level skip when
+Verified locally before writing this document: `forge test` passes 176 of
+177 tests across 12 suites in `contracts/` (the 1 skip only happens when
 `MONAD_TESTNET_RPC` isn't available to `forge`, that one suite is a real,
 no-mock-data integration test against the live Monad testnet validator, see
 `contracts/test/HybridComplianceGateMonadFork.t.sol`), and the backend's
@@ -166,9 +166,21 @@ AES round-trip against real data, not just the documented spec).
 
 **Contracts** (`contracts/src/`):
 - `LendingPool.sol`, deposit, borrow, repay, withdraw, liquidate, tier-scaled
-  collateral ratios, simple linear interest, Pausable, ReentrancyGuard,
-  SafeERC20, custom errors throughout.
+  collateral ratios, a utilization-based two-slope interest rate (base
+  rate, a slope up to an owner-configurable kink, a steeper slope beyond
+  it), Pausable, ReentrancyGuard, SafeERC20, custom errors throughout.
 - `RevocationGuardian.sol`, the unwind state machine described above.
+- `IUnwindStrategy` (`contracts/src/interfaces/`) and three implementations
+  (`contracts/src/strategies/`): `GraceAndNotifyStrategy` (the default,
+  reads grace duration live from `CompliancePolicy`, preserves the
+  original behavior exactly), `ImmediateQuarantineStrategy` (a short,
+  fixed grace period), `ForcedUnwindStrategy` (zero grace, unwind is
+  callable in the same block a position is flagged). A strategy varies
+  ONLY timing/aggressiveness, `RevocationGuardian.setStrategy` (owner-only)
+  rejects, on-chain, any strategy that doesn't declare self-cure-before-
+  liquidation and reinstatement-allowed, so no strategy can confiscate
+  value or trap a borrower's exit, that stays guaranteed by the guardian's
+  own unconditional mechanics regardless of which strategy is active.
 - `ComplianceRegistry.sol`, the EIP-712 attestation store and verifier.
 - `CompliancePolicy.sol`, the single, owner-configurable, event-logged home
   for every eligibility and risk parameter the rest of the system reads.

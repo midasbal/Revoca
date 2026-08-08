@@ -2,7 +2,9 @@
  * REAL Monad testnet deployment of Revoca's full on-chain stack:
  * MockERC20 (lent asset), CompliancePolicy, ComplianceRegistry,
  * HybridComplianceGate (ValidatorGated, pointed at the real Cleanverse CVI
- * Compliance Validator), LendingPool, RevocationGuardian.
+ * Compliance Validator), LendingPool, GraceAndNotifyStrategy (the default
+ * IUnwindStrategy, preserving pre-strategy behavior exactly, see
+ * docs/ROADMAP.md's refinement backlog), RevocationGuardian.
  *
  * PROVISIONAL DEPLOYMENT, per this session's explicit scoping: the pool
  * will change again once the interest model and pluggable unwind land
@@ -126,7 +128,8 @@ async function main() {
 
   // Deploy order (CREATE, nonce increments by 1 per deploy):
   //   0: asset (MockERC20)  1: policy (CompliancePolicy)  2: registry (ComplianceRegistry)
-  //   3: gate (HybridComplianceGate)  4: pool (LendingPool)  5: guardian (RevocationGuardian)
+  //   3: gate (HybridComplianceGate)  4: pool (LendingPool)
+  //   5: strategy (GraceAndNotifyStrategy)  6: guardian (RevocationGuardian)
   const predictedPoolAddress = getContractAddress({ from: deployer.address, nonce: BigInt(baseNonce) + 4n });
   console.log(`Predicted LendingPool address (nonce ${baseNonce + 4}): ${predictedPoolAddress}`);
 
@@ -186,10 +189,15 @@ async function main() {
   }
   console.log("  predicted address confirmed exactly, HybridComplianceGate.validatorPool is correct");
 
+  const strategy = await deploy("GraceAndNotifyStrategy", "GraceAndNotifyStrategy.sol/GraceAndNotifyStrategy.json", [
+    pool,
+  ]);
+
   const guardian = await deploy("RevocationGuardian", "RevocationGuardian.sol/RevocationGuardian.json", [
     registry,
     pool,
     deployer.address,
+    strategy,
   ]);
 
   // -----------------------------------------------------------------
@@ -225,7 +233,7 @@ async function main() {
     deployedAt: new Date().toISOString(),
     provisional: true,
     provisionalNote:
-      "Real, live, transacting deployment used to prove the full loop end to end this session. Will be redeployed once the interest model and pluggable unwind land, per docs/ROADMAP.md's refinement backlog.",
+      "Real, live, transacting deployment used to prove the full loop end to end this session. Will be redeployed again once the pluggable unwind lands for real testnet use, per docs/ROADMAP.md's refinement backlog.",
     validatorAddress: VALIDATOR_ADDRESS,
     deployer: deployer.address,
     attestor: attestor.address,
@@ -234,6 +242,7 @@ async function main() {
     registry,
     gate,
     pool,
+    strategy,
     guardian,
   };
 

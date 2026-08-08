@@ -10,6 +10,8 @@ import {ICountrySource} from "../src/interfaces/ICountrySource.sol";
 import {CompliancePolicy} from "../src/CompliancePolicy.sol";
 import {ComplianceRegistry} from "../src/ComplianceRegistry.sol";
 import {RevocationGuardian} from "../src/RevocationGuardian.sol";
+import {IUnwindStrategy} from "../src/interfaces/IUnwindStrategy.sol";
+import {GraceAndNotifyStrategy} from "../src/strategies/GraceAndNotifyStrategy.sol";
 import {TestCountrySource} from "../src/test/TestCountrySource.sol";
 import {MockERC20} from "../src/test/MockERC20.sol";
 import {EIP712TestUtils} from "./helpers/EIP712TestUtils.sol";
@@ -55,7 +57,8 @@ contract RevocationGuardianTest is EIP712TestUtils {
             LIQUIDATION_BONUS_BPS
         );
 
-        guardian = new RevocationGuardian(registry, pool, owner);
+        IUnwindStrategy defaultStrategy = new GraceAndNotifyStrategy(pool);
+        guardian = new RevocationGuardian(registry, pool, owner, defaultStrategy);
         pool.setGuardian(address(guardian));
 
         address[4] memory users = [lender1, alice, bob, liquidator];

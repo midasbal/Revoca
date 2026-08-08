@@ -14,6 +14,7 @@ import {CompliancePolicy} from "../src/CompliancePolicy.sol";
 import {ComplianceRegistry} from "../src/ComplianceRegistry.sol";
 import {LendingPool} from "../src/LendingPool.sol";
 import {RevocationGuardian} from "../src/RevocationGuardian.sol";
+import {GraceAndNotifyStrategy} from "../src/strategies/GraceAndNotifyStrategy.sol";
 
 /**
  * @title DeployLocal
@@ -149,7 +150,7 @@ contract DeployLocal is Script {
             INTEREST_RATE_BPS_PER_SECOND,
             LIQUIDATION_BONUS_BPS
         );
-        d.guardian = new RevocationGuardian(d.registry, d.pool, deployer);
+        d.guardian = new RevocationGuardian(d.registry, d.pool, deployer, new GraceAndNotifyStrategy(d.pool));
     }
 
     function _setGuardianAndAttestor(Deployed memory d, address deployer) internal {

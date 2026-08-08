@@ -6,6 +6,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 import {ComplianceRegistry} from "./ComplianceRegistry.sol";
 import {LendingPool} from "./LendingPool.sol";
+import {IUnwindStrategy} from "./interfaces/IUnwindStrategy.sol";
 
 /**
  * @title RevocationGuardian
@@ -39,13 +40,20 @@ import {LendingPool} from "./LendingPool.sol";
  * deviation, it avoids two enum values with no real transition between
  * them (and the wasted storage write that would imply).
  *
- * Grace duration is NOT this contract's own state, per docs/ROADMAP.md
- * Phase 2a, it's read live from `pool.policy().graceDuration()`
- * (CompliancePolicy), the single source of truth every lifecycle parameter
- * lives on. `flag()` reads it fresh at flag-time, so an owner change to the
- * policy's grace duration takes effect for the NEXT flag, not retroactively
- * for positions already in their grace window (`graceEndsAt` is fixed at
- * flag-time, per-position).
+ * Grace duration is NOT this contract's own state, per docs/ROADMAP.md's
+ * refinement backlog ("Pluggable unwind strategy"), it's read live from
+ * `strategy` (`IUnwindStrategy`, see that interface's header), an
+ * owner-settable, swappable strategy object rather than a single hardcoded
+ * number. `flag()` reads `strategy.graceDuration()` fresh at flag-time, so
+ * a strategy swap (or, for `GraceAndNotifyStrategy`, an owner change to
+ * the underlying `CompliancePolicy.graceDuration()`) takes effect for the
+ * NEXT flag, not retroactively for positions already in their grace window
+ * (`graceEndsAt` is fixed at flag-time, per-position, exactly as before).
+ * The strategy varies ONLY this parameter and a declared, install-time-
+ * enforced guarantee (see `setStrategy` and `IUnwindStrategy`'s header),
+ * it does not participate in the state machine's shape or in
+ * `startUnwind`'s unconditional self-cure-then-liquidation mechanics
+ * below, which are identical under every strategy.
  *
  * A FLAGGED position can return to HEALTHY via `reinstate()` if compliance
  * (and tier-derived health) is restored before grace elapses. Once
@@ -129,6 +137,9 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
     ComplianceRegistry public immutable registry;
     LendingPool public immutable pool;
 
+    /// @notice The active unwind strategy, see IUnwindStrategy.sol's header. Owner-settable via setStrategy, defaults to whatever the deployer passes at construction (this session's deploy scripts default to GraceAndNotifyStrategy, preserving pre-strategy behavior exactly out of the box).
+    IUnwindStrategy public strategy;
+
     mapping(address => GuardianPosition) public positions;
 
     event PositionFlagged(address indexed borrower, ComplianceRegistry.Reason reason, uint256 graceEndsAt);
@@ -136,6 +147,7 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
     event UnwindStarted(address indexed borrower, uint256 debtAtStart, uint256 collateralAtStart);
     event UnwindStep(address indexed borrower, string step, uint256 amount, uint256 remainingDebt);
     event UnwindCompleted(address indexed borrower, uint256 residualCollateral);
+    event StrategyChanged(address indexed oldStrategy, address indexed newStrategy);
 
     error NotEligibleToFlag(address borrower, PositionState currentState);
     error PositionNotFlaggable(address borrower);
@@ -146,10 +158,42 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
     error StaleCompliance(address borrower);
     error StillNonCompliant(address borrower);
     error StillUnhealthy(address borrower);
+    /// @notice Reverted by setStrategy/the constructor when a proposed strategy fails to declare Revoca's non-negotiable invariants, see IUnwindStrategy.sol's header.
+    error InvalidStrategy(address strategy);
 
-    constructor(ComplianceRegistry registry_, LendingPool pool_, address initialOwner) Ownable(initialOwner) {
+    constructor(ComplianceRegistry registry_, LendingPool pool_, address initialOwner, IUnwindStrategy strategy_)
+        Ownable(initialOwner)
+    {
         registry = registry_;
         pool = pool_;
+        _setStrategy(strategy_);
+    }
+
+    /**
+     * @notice Owner-only, swaps the active unwind strategy. Reverts with
+     * InvalidStrategy if the proposed strategy doesn't declare
+     * self-cure-first and reinstatement-allowed, see IUnwindStrategy.sol's
+     * header for why this is enforced here rather than only documented.
+     * Takes effect for the NEXT flag() only, positions already FLAGGED
+     * keep the graceEndsAt fixed when they were flagged, exactly as an
+     * owner changing CompliancePolicy.graceDuration already worked before
+     * strategies existed.
+     */
+    function setStrategy(IUnwindStrategy newStrategy) external onlyOwner {
+        _setStrategy(newStrategy);
+    }
+
+    function _setStrategy(IUnwindStrategy newStrategy) internal {
+        if (address(newStrategy) == address(0)) revert InvalidStrategy(address(newStrategy));
+
+        IUnwindStrategy.UnwindAction[] memory sequence = newStrategy.unwindSequence();
+        bool startsWithSelfCure = sequence.length > 0 && sequence[0] == IUnwindStrategy.UnwindAction.SELF_CURE;
+        if (!startsWithSelfCure || !newStrategy.reinstatementAllowed()) {
+            revert InvalidStrategy(address(newStrategy));
+        }
+
+        emit StrategyChanged(address(strategy), address(newStrategy));
+        strategy = newStrategy;
     }
 
     /**
@@ -181,7 +225,7 @@ contract RevocationGuardian is Ownable, ReentrancyGuard {
         p.state = PositionState.FLAGGED;
         p.reason = reason;
         p.flaggedAt = block.timestamp;
-        p.graceEndsAt = block.timestamp + pool.policy().graceDuration();
+        p.graceEndsAt = block.timestamp + strategy.graceDuration();
         p.unwindStartedAt = 0;
 
         emit PositionFlagged(borrower, reason, p.graceEndsAt);

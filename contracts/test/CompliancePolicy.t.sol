@@ -8,6 +8,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {CompliancePolicy} from "../src/CompliancePolicy.sol";
 import {LendingPool} from "../src/LendingPool.sol";
 import {RevocationGuardian} from "../src/RevocationGuardian.sol";
+import {GraceAndNotifyStrategy} from "../src/strategies/GraceAndNotifyStrategy.sol";
 import {ComplianceRegistry} from "../src/ComplianceRegistry.sol";
 import {IComplianceGate} from "../src/interfaces/IComplianceGate.sol";
 import {ITierOracle} from "../src/interfaces/ITierOracle.sol";
@@ -450,7 +451,7 @@ contract CompliancePolicyIntegrationTest is EIP712TestUtils {
             1,
             500
         );
-        RevocationGuardian guardian = new RevocationGuardian(registry, p2, owner);
+        RevocationGuardian guardian = new RevocationGuardian(registry, p2, owner, new GraceAndNotifyStrategy(p2));
         p2.setGuardian(address(guardian));
 
         _attest(registry, alice, 50, 80, registry.APASS_STATUS_FROZEN());
