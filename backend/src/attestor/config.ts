@@ -15,7 +15,7 @@ import { config as loadDotenv } from "dotenv";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Address, LocalAccount } from "viem";
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 loadDotenv({ path: resolve(REPO_ROOT, ".env") });
 
 export interface AttestorConfig {

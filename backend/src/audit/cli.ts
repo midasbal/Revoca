@@ -8,7 +8,11 @@
  * Usage (from backend/):
  *   npx tsx src/audit/cli.ts --rpc-url http://127.0.0.1:8545 --pool 0x... \
  *     [--borrower 0x...] [--from-block 0] [--to-block latest] \
- *     [--out ./audit-report] [--sign]
+ *     [--out ./audit-report] [--sign] [--log-chunk-blocks 10000]
+ *
+ * --log-chunk-blocks overrides DEFAULT_LOG_CHUNK_BLOCKS (10_000), needed
+ * for RPC providers with a tighter eth_getLogs block-range cap, e.g.
+ * Monad's public testnet RPC allows only 100.
  */
 import { writeFileSync } from "node:fs";
 import { createPublicClient, http, type Address } from "viem";
@@ -21,7 +25,7 @@ import { renderMarkdown } from "./report.js";
 import { signReport } from "./sign.js";
 import { attestorAccountFromConfig, loadAttestorConfig } from "../attestor/config.js";
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 loadDotenv({ path: resolve(REPO_ROOT, ".env") });
 
 interface CliArgs {
@@ -32,6 +36,7 @@ interface CliArgs {
   toBlock?: bigint | undefined;
   out: string;
   sign: boolean;
+  logChunkBlocks?: bigint | undefined;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -46,6 +51,7 @@ function parseArgs(argv: string[]): CliArgs {
 
   const fromBlockRaw = get("--from-block") ?? "0";
   const toBlockRaw = get("--to-block");
+  const logChunkBlocksRaw = get("--log-chunk-blocks");
 
   return {
     rpcUrl,
@@ -55,6 +61,14 @@ function parseArgs(argv: string[]): CliArgs {
     toBlock: toBlockRaw && toBlockRaw !== "latest" ? BigInt(toBlockRaw) : undefined,
     out: get("--out") ?? "./audit-report",
     sign: argv.includes("--sign"),
+    // Real RPC providers cap eth_getLogs by block range differently, some
+    // allow thousands, Monad's public testnet RPC allows only 100
+    // (confirmed empirically this session against DEFAULT_LOG_CHUNK_BLOCKS's
+    // 10_000 default, which the real RPC rejected outright). Overridable
+    // per invocation rather than baking a provider-specific number into
+    // the default, since that default is deliberately generous for
+    // providers that support it.
+    logChunkBlocks: logChunkBlocksRaw ? BigInt(logChunkBlocksRaw) : undefined,
   };
 }
 
@@ -68,6 +82,7 @@ async function main() {
     fromBlock: args.fromBlock,
     toBlock: args.toBlock,
     borrower: args.borrower,
+    logChunkBlocks: args.logChunkBlocks,
   });
 
   writeFileSync(`${args.out}.json`, JSON.stringify(report, null, 2));

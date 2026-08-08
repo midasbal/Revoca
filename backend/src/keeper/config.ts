@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 loadDotenv({ path: resolve(REPO_ROOT, ".env") });
 
 export interface KeeperConfig {

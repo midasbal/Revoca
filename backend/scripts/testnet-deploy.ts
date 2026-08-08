@@ -65,8 +65,21 @@ function loadArtifact(relPath: string): { abi: unknown; bytecode: { object: Hex 
 function persistSecretToEnv(key: string, value: string): void {
   const envPath = resolve(REPO_ROOT, ".env");
   const existing = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
-  if (new RegExp(`^${key}=`, "m").test(existing)) {
-    console.log(`  .env already has ${key}, leaving it as-is`);
+  // A bare "KEY=" placeholder line (e.g. from .env.example) has the key
+  // NAME present but an EMPTY value, that must be filled in, not skipped,
+  // or a freshly generated secret that was already used on-chain/off-chain
+  // this run gets silently discarded and lost. Only a line with a real,
+  // non-empty value counts as "already configured."
+  const nonEmptyMatch = new RegExp(`^${key}=.+$`, "m").exec(existing);
+  if (nonEmptyMatch) {
+    console.log(`  .env already has a non-empty ${key}, leaving it as-is`);
+    return;
+  }
+  const blankLinePattern = new RegExp(`^${key}=\\s*$`, "m");
+  if (blankLinePattern.test(existing)) {
+    const updated = existing.replace(blankLinePattern, `${key}=${value}`);
+    writeFileSync(envPath, updated);
+    console.log(`  filled in blank ${key} placeholder in .env (value not logged)`);
     return;
   }
   appendFileSync(envPath, `${existing.endsWith("\n") || existing === "" ? "" : "\n"}${key}=${value}\n`);

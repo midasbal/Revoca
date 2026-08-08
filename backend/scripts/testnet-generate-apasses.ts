@@ -68,8 +68,19 @@ function reportCleanverseError(label: string, err: unknown): void {
 /** Appends KEY=0x... to .env only if KEY isn't already set there. Never logs the value. */
 function persistSecretToEnv(key: string, value: string): void {
   const existing = existsSync(ENV_PATH) ? readFileSync(ENV_PATH, "utf8") : "";
-  if (new RegExp(`^${key}=`, "m").test(existing)) {
-    console.log(`  .env already has ${key}, leaving it as-is`);
+  // A bare "KEY=" placeholder line (e.g. from .env.example) has the key
+  // NAME present but an EMPTY value, that must be filled in, not skipped,
+  // or a freshly generated secret that was already used on-chain/off-chain
+  // this run gets silently discarded and lost. Only a line with a real,
+  // non-empty value counts as "already configured."
+  if (new RegExp(`^${key}=.+$`, "m").test(existing)) {
+    console.log(`  .env already has a non-empty ${key}, leaving it as-is`);
+    return;
+  }
+  const blankLinePattern = new RegExp(`^${key}=\\s*$`, "m");
+  if (blankLinePattern.test(existing)) {
+    writeFileSync(ENV_PATH, existing.replace(blankLinePattern, `${key}=${value}`));
+    console.log(`  filled in blank ${key} placeholder in .env (value not logged)`);
     return;
   }
   appendFileSync(ENV_PATH, `${existing.endsWith("\n") || existing === "" ? "" : "\n"}${key}=${value}\n`);
