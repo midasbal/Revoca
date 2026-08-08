@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { DEMO_BORROWER } from '../deployment';
+import type { Address } from 'viem';
 import { DEPLOYMENT, GUARDIAN_ABI, POOL_ABI, REGISTRY_ABI, publicClient } from '../chain';
 
 export interface PositionSnapshot {
@@ -36,17 +36,17 @@ const POLL_INTERVAL_MS = 4000;
  * parallel reads plus useLedger's own requests landing in the same
  * instant genuinely burst past that.
  */
-async function fetchSnapshot(): Promise<PositionSnapshot> {
+async function fetchSnapshot(address: Address): Promise<PositionSnapshot> {
   const [[position, debt, ratioBps, tierOf, compliant, fresh, guardianPosition], block] = await Promise.all([
     publicClient.multicall({
       contracts: [
-        { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'positions', args: [DEMO_BORROWER] },
-        { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'currentDebt', args: [DEMO_BORROWER] },
-        { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'currentRatioBps', args: [DEMO_BORROWER] },
-        { address: DEPLOYMENT.registry, abi: REGISTRY_ABI, functionName: 'tierOf', args: [DEMO_BORROWER] },
-        { address: DEPLOYMENT.registry, abi: REGISTRY_ABI, functionName: 'isCompliant', args: [DEMO_BORROWER] },
-        { address: DEPLOYMENT.registry, abi: REGISTRY_ABI, functionName: 'isFresh', args: [DEMO_BORROWER] },
-        { address: DEPLOYMENT.guardian, abi: GUARDIAN_ABI, functionName: 'positions', args: [DEMO_BORROWER] },
+        { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'positions', args: [address] },
+        { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'currentDebt', args: [address] },
+        { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'currentRatioBps', args: [address] },
+        { address: DEPLOYMENT.registry, abi: REGISTRY_ABI, functionName: 'tierOf', args: [address] },
+        { address: DEPLOYMENT.registry, abi: REGISTRY_ABI, functionName: 'isCompliant', args: [address] },
+        { address: DEPLOYMENT.registry, abi: REGISTRY_ABI, functionName: 'isFresh', args: [address] },
+        { address: DEPLOYMENT.guardian, abi: GUARDIAN_ABI, functionName: 'positions', args: [address] },
       ],
       allowFailure: false,
     }),
@@ -71,8 +71,8 @@ async function fetchSnapshot(): Promise<PositionSnapshot> {
   };
 }
 
-/** Polls the demo borrower's live on-chain standing at a fixed interval. Real reads only, no mock data, an error state surfaces if the RPC can't be reached rather than showing a fabricated value. */
-export function usePosition(): PositionState {
+/** Polls a borrower's live on-chain standing at a fixed interval. Real reads only, no mock data, an error state surfaces if the RPC can't be reached rather than showing a fabricated value. */
+export function usePosition(address: Address): PositionState {
   const [state, setState] = useState<PositionState>({ status: 'loading' });
   const generation = useRef(0);
 
@@ -81,12 +81,13 @@ export function usePosition(): PositionState {
     let inFlight = false;
     generation.current += 1;
     const myGeneration = generation.current;
+    setState({ status: 'loading' });
 
     async function tick() {
       if (inFlight) return;
       inFlight = true;
       try {
-        const data = await fetchSnapshot();
+        const data = await fetchSnapshot(address);
         if (!cancelled && generation.current === myGeneration) {
           setState({ status: 'ready', data });
         }
@@ -105,7 +106,7 @@ export function usePosition(): PositionState {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [address]);
 
   return state;
 }

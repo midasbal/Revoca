@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Log } from 'viem';
-import { DEMO_BORROWER, DEMO_ORIGIN_BLOCK } from '../deployment';
+import type { Address, Log } from 'viem';
 import { DEPLOYMENT, GUARDIAN_ABI, POOL_ABI, fetchLogsChunked, formatAmount, formatBps, publicClient } from '../chain';
 
 export interface LedgerEntry {
@@ -68,7 +67,7 @@ function describe(log: DecodedLog): { headline: string; detail: string } {
  * full history on every poll doesn't scale as the demo runs longer, this
  * hook only ever asks for the blocks it hasn't seen yet.
  */
-async function fetchLedgerRange(fromBlock: bigint, toBlock: bigint): Promise<LedgerEntry[]> {
+async function fetchLedgerRange(address: Address, fromBlock: bigint, toBlock: bigint): Promise<LedgerEntry[]> {
   if (fromBlock > toBlock) return [];
 
   const [poolLogs, guardianLogs] = await Promise.all([
@@ -79,7 +78,7 @@ async function fetchLedgerRange(fromBlock: bigint, toBlock: bigint): Promise<Led
   const all = [...poolLogs, ...guardianLogs] as DecodedLog[];
   const forBorrower = all.filter((log) => {
     const borrower = (log.args as Record<string, unknown> | undefined)?.borrower;
-    return typeof borrower === 'string' && borrower.toLowerCase() === DEMO_BORROWER.toLowerCase();
+    return typeof borrower === 'string' && borrower.toLowerCase() === address.toLowerCase();
   });
 
   if (forBorrower.length === 0) return [];
@@ -115,11 +114,18 @@ async function fetchLedgerRange(fromBlock: bigint, toBlock: bigint): Promise<Led
 
 const POLL_INTERVAL_MS = 6000;
 
-export function useLedger(): { entries: LedgerEntry[]; loading: boolean } {
+/**
+ * `originBlock` bounds the scan since Monad's public RPC caps eth_getLogs
+ * at 100 blocks (see fetchLedgerRange), scanning a pool's entire history
+ * on every load isn't practical. Every address this app knows about today
+ * has a known origin (see deployment.ts), a future positions registry
+ * will need to resolve one per position rather than assume it.
+ */
+export function useLedger(address: Address, originBlock: bigint): { entries: LedgerEntry[]; loading: boolean } {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const generation = useRef(0);
-  const scannedThrough = useRef(DEMO_ORIGIN_BLOCK - 1n);
+  const scannedThrough = useRef(originBlock - 1n);
   const accumulated = useRef<LedgerEntry[]>([]);
 
   useEffect(() => {
@@ -127,23 +133,25 @@ export function useLedger(): { entries: LedgerEntry[]; loading: boolean } {
     let inFlight = false;
     generation.current += 1;
     const myGeneration = generation.current;
-    scannedThrough.current = DEMO_ORIGIN_BLOCK - 1n;
+    scannedThrough.current = originBlock - 1n;
     accumulated.current = [];
+    setEntries([]);
+    setLoading(true);
 
     async function tick() {
-      // The FIRST scan (the full history back to DEMO_ORIGIN_BLOCK) can
-      // take longer than POLL_INTERVAL_MS on Monad's public RPC. Without
-      // this guard, setInterval fires a second tick while the first is
-      // still awaiting its own getLogs calls, both read the same
-      // not-yet-advanced scannedThrough value, and both append the
-      // identical range, real duplicate ledger rows confirmed live this
-      // session, not a hypothetical.
+      // The FIRST scan (the full history back to originBlock) can take
+      // longer than POLL_INTERVAL_MS on Monad's public RPC. Without this
+      // guard, setInterval fires a second tick while the first is still
+      // awaiting its own getLogs calls, both read the same not-yet-
+      // advanced scannedThrough value, and both append the identical
+      // range, real duplicate ledger rows confirmed live this session,
+      // not a hypothetical.
       if (inFlight) return;
       inFlight = true;
       try {
         const toBlock = await publicClient.getBlockNumber();
         const fromBlock = scannedThrough.current + 1n;
-        const fresh = await fetchLedgerRange(fromBlock, toBlock);
+        const fresh = await fetchLedgerRange(address, fromBlock, toBlock);
         if (cancelled || generation.current !== myGeneration) return;
 
         scannedThrough.current = toBlock;
@@ -167,7 +175,7 @@ export function useLedger(): { entries: LedgerEntry[]; loading: boolean } {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [address, originBlock]);
 
   return { entries, loading };
 }

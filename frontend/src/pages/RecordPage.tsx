@@ -1,35 +1,47 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { RingMark } from './components/RingMark';
-import { Ledger } from './components/Ledger';
-import { AmbientField } from './components/AmbientField';
-import { StatusRail } from './components/StatusRail';
-import { RegistryRail } from './components/RegistryRail';
-import { TickingValue } from './components/TickingValue';
-import { usePosition } from './hooks/usePosition';
-import { useLedger } from './hooks/useLedger';
-import { useStrikePhase } from './hooks/useStrikePhase';
-import { usePrevious } from './hooks/usePrevious';
-import { useClock } from './hooks/useClock';
-import { DEMO_BORROWER } from './deployment';
-import { GuardianReason, GuardianState, explorerAddressUrl, formatAmount, formatBps, shortAddress } from './chain';
+import { RingMark } from '../components/RingMark';
+import { Ledger } from '../components/Ledger';
+import { StatusRail } from '../components/StatusRail';
+import { RegistryRail } from '../components/RegistryRail';
+import { TickingValue } from '../components/TickingValue';
+import { Button } from '../components/ui/Button';
+import { usePosition } from '../hooks/usePosition';
+import { useLedger } from '../hooks/useLedger';
+import { useStrikePhase } from '../hooks/useStrikePhase';
+import { usePrevious } from '../hooks/usePrevious';
+import { useClock } from '../hooks/useClock';
+import { DEMO_BORROWER, DEMO_ORIGIN_BLOCK } from '../deployment';
+import { GuardianReason, GuardianState, explorerAddressUrl, formatAmount, formatBps, shortAddress } from '../chain';
+import type { Address } from 'viem';
 
 const EASE_CONFIDENT = [0.16, 1, 0.3, 1] as const;
 
-const DEMO_SERVER_URL = (import.meta.env.VITE_DEMO_SERVER_URL as string | undefined) ?? 'http://localhost:8787';
+/**
+ * Set once the backend is actually deployed (see docs/ARCHITECTURE.md's
+ * frontend/backend split and src/api/backendContract.ts). Unset, the
+ * record is still fully live and readable, real chain data throughout,
+ * only the two actions that need a secret-holding backend are honestly
+ * disabled rather than pointed at a local process nobody should run.
+ */
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL as string | undefined;
 
 type ActionKind = 'idle' | 'strike' | 'advance';
 
-export default function App() {
-  const position = usePosition();
-  const { entries } = useLedger();
+export default function RecordPage() {
+  const params = useParams<{ address?: string }>();
+  const borrower = (params.address as Address | undefined) ?? DEMO_BORROWER;
+
+  const position = usePosition(borrower);
+  const { entries } = useLedger(borrower, DEMO_ORIGIN_BLOCK);
   const now = useClock();
 
   // The real sequence behind each action is several sequentially-confirmed
   // Monad testnet transactions, minutes under real congestion, well past
-  // what a single HTTP request should stay open for. The server responds
-  // as soon as the action is under way (see demoServer.ts), and this app
-  // tracks "pending" as "waiting for the guardian's on-chain state to
+  // what a single HTTP request should stay open for. Once the backend is
+  // deployed, it responds as soon as the action is under way, and this
+  // page tracks "pending" as "waiting for the guardian's on-chain state to
   // actually move away from what it was when the action was requested",
   // which is what usePosition's own polling already reflects, real
   // progress, not a fabricated spinner.
@@ -47,10 +59,10 @@ export default function App() {
   }, [pending, pendingSinceState, position]);
 
   useEffect(() => {
-    if (pending === 'idle') return;
+    if (pending === 'idle' || !BACKEND_URL) return;
     let cancelled = false;
     const id = window.setInterval(() => {
-      fetch(`${DEMO_SERVER_URL}/api/last-error`)
+      fetch(`${BACKEND_URL}/api/positions/${borrower}/last-error`)
         .then((response) => response.json())
         .then((body: { error: string | null }) => {
           if (!cancelled && body.error) {
@@ -67,15 +79,15 @@ export default function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [pending]);
+  }, [pending, borrower]);
 
-  async function callServer(path: string, kind: ActionKind) {
-    if (position.status !== 'ready') return;
+  async function callBackend(path: string, kind: ActionKind) {
+    if (position.status !== 'ready' || !BACKEND_URL) return;
     setPending(kind);
     setPendingSinceState(position.data.guardianState);
     setActionError(null);
     try {
-      const response = await fetch(`${DEMO_SERVER_URL}${path}`, { method: 'POST' });
+      const response = await fetch(`${BACKEND_URL}${path}`, { method: 'POST' });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) {
         throw new Error(body.error ?? `Request failed with status ${response.status}`);
@@ -118,11 +130,10 @@ export default function App() {
 
   return (
     <div className="console">
-      <AmbientField pulseKey={position.status === 'ready' ? position.data.polledAt : null} struck={struck} />
       <div className="console__layout">
         <StatusRail position={position} now={now} />
 
-        <main className="record">
+        <main className={`record${struck ? ' record--struck' : ''}`}>
           <div className="record__header">
             <span className="eyebrow">Revoca &middot; Compliance Registry</span>
             <span className="eyebrow record__live">
@@ -171,8 +182,8 @@ export default function App() {
           <p className="record__number">
             Record No.{' '}
             <strong className="mono">
-              <a href={explorerAddressUrl(DEMO_BORROWER)} target="_blank" rel="noreferrer">
-                {shortAddress(DEMO_BORROWER)}
+              <a href={explorerAddressUrl(borrower)} target="_blank" rel="noreferrer">
+                {shortAddress(borrower)}
               </a>
             </strong>
           </p>
@@ -220,36 +231,28 @@ export default function App() {
 
           <div className="action">
             {readyToStrike && (
-              <button
-                type="button"
-                className="action__button action__button--strike"
-                disabled={pending !== 'idle'}
-                onClick={() => void callServer('/api/strike', 'strike')}
+              <Button
+                variant="strike"
+                disabled={pending !== 'idle' || !BACKEND_URL}
+                onClick={() => void callBackend(`/api/positions/${borrower}/strike`, 'strike')}
               >
                 {pending === 'strike' ? 'Striking record…' : 'Strike this record'}
-              </button>
+              </Button>
             )}
 
             {position.status === 'ready' && position.data.guardianState === GuardianState.FLAGGED && (
-              <button
-                type="button"
-                className="action__button"
-                disabled={pending !== 'idle' || (graceRemaining !== null && graceRemaining > 0)}
-                onClick={() => void callServer('/api/advance', 'advance')}
+              <Button
+                disabled={pending !== 'idle' || !BACKEND_URL || (graceRemaining !== null && graceRemaining > 0)}
+                onClick={() => void callBackend(`/api/positions/${borrower}/advance`, 'advance')}
               >
                 {pending === 'advance' ? 'Advancing the unwind…' : 'Advance the unwind'}
-              </button>
+              </Button>
             )}
 
             {position.status === 'ready' && position.data.guardianState === GuardianState.UNWINDING && (
-              <button
-                type="button"
-                className="action__button"
-                disabled={pending !== 'idle'}
-                onClick={() => void callServer('/api/advance', 'advance')}
-              >
+              <Button disabled={pending !== 'idle' || !BACKEND_URL} onClick={() => void callBackend(`/api/positions/${borrower}/advance`, 'advance')}>
                 {pending === 'advance' ? 'Advancing the unwind…' : 'Complete the unwind'}
-              </button>
+              </Button>
             )}
 
             {position.status === 'ready' && position.data.guardianState === GuardianState.RESOLVED && !readyToStrike && (
@@ -261,6 +264,10 @@ export default function App() {
                 Grace ends in <span className="action__countdown mono">{graceRemaining}s</span>, the record may still be
                 reinstated
               </p>
+            )}
+
+            {!BACKEND_URL && (position.status !== 'ready' || readyToStrike || struck) && (
+              <p className="action__status">Actions are served by the backend, not yet deployed.</p>
             )}
 
             {actionError && <p className="action__status action__status--error">{actionError}</p>}

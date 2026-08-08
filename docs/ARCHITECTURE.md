@@ -201,3 +201,20 @@ this introduces and its bounds.
 Using **Foundry** for `contracts/`. *(If this changes to Hardhat mid-build,
 update this section with the reason, e.g. tooling issue with Monad testnet
 RPC compatibility.)*
+
+## Frontend / backend split (standing constraint)
+
+The frontend (`frontend/`) is fully runnable with `npm run dev` and never
+depends on a locally-run backend process. It reads live testnet state
+directly via viem wherever a read doesn't need a secret (positions,
+guardian state, tier, ledger events, block height). Anything that needs a
+secret (the Cleanverse API key, the attestor key, the deployer key, the
+per-action calls documented as typed stubs in
+`frontend/src/api/backendContract.ts`, onboarding/provisioning, freezing,
+driving an unwind) goes through a backend that is built to be deployed as
+small, stateless, serverless-friendly functions (each request carries the
+address it acts on rather than relying on server session state), never a
+process anyone runs on their own machine. The now-removed
+`backend/src/server/demoServer.ts` was a local-only stand-in for the
+single-record demo pass; its replacement is the deployed backend, not
+another local server.

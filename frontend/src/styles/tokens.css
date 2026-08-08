@@ -1,5 +1,5 @@
 /*
-  Revoca record view, design tokens.
+  Revoca design system tokens.
 
   Reference world: a notarial/registrar record, not a SaaS dashboard and
   not a newspaper. A cool, institutional register stock (not warm cream),
@@ -9,6 +9,11 @@
   (measured ~#F4AB10). Valid standing is deliberately NOT green, it's the
   same cool ink/off-white the ring is drawn in at rest, calm and neutral,
   so amber reads as the one moment something changed.
+
+  This file is the one place color, type, spacing, and motion are named.
+  Every surface in the app (record, header, footer, wallet UI, future
+  pages) draws from it, that's what keeps the app reading as one product
+  instead of a record view with pages bolted on.
 */
 
 :root {
@@ -17,7 +22,8 @@
   --ink-soft: #57635b;         /* muted ink, secondary text */
   --ink-faint: #8a938c;        /* faintest ink, tertiary/meta text */
 
-  --paper: #e6e9e1;            /* cool sage register stock, page ground */
+  --ground: #dde1d8;           /* the app's fixed environment behind every page, one shade below paper */
+  --paper: #e6e9e1;            /* cool sage register stock, page/card ground */
   --paper-raised: #f3f5ee;     /* record card surface, lifted off the page */
   --paper-recessed: #dcdfd5;   /* ledger row zebra / inset areas */
 
@@ -31,10 +37,30 @@
 
   --accent: #2f5142;            /* deep pine, live-pulse + interactive elements */
 
-  /* -- Type -- */
-  --font-display: 'Fraunces', ui-serif, serif;
-  --font-body: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --shadow-color: 27, 35, 33;
+
+  /* -- Type roles -- */
+  --font-display: 'Fraunces', ui-serif, serif;   /* record headers, standing words, characterful, used with restraint */
+  --font-body: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;  /* everything read as prose or UI copy */
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;  /* addresses, hashes, on-chain values */
+
+  /* -- Type scale: font-size paired with a matched line-height -- */
+  --text-2xs: 0.6875rem;
+  --text-2xs-lh: 1.3;
+  --text-xs: 0.75rem;
+  --text-xs-lh: 1.4;
+  --text-sm: 0.8125rem;
+  --text-sm-lh: 1.5;
+  --text-base: 0.9375rem;
+  --text-base-lh: 1.55;
+  --text-md: 1.125rem;
+  --text-md-lh: 1.4;
+  --text-lg: clamp(1.5rem, 3vw, 1.875rem);
+  --text-lg-lh: 1.15;
+  --text-display-md: clamp(1.9rem, 6.5vw, 2.75rem);
+  --text-display-md-lh: 1;
+  --text-display-lg: clamp(2.5rem, 7vw, 4rem);
+  --text-display-lg-lh: 0.98;
 
   /* -- Scale -- */
   --space-1: 0.25rem;
@@ -48,9 +74,21 @@
 
   --radius-card: 3px;
   --radius-chip: 2px;
+  --radius-round: 999px;
 
-  --ease-confident: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-snap: cubic-bezier(0.62, 0, 0.32, 1.28);
+  /* -- Motion: eases and durations named by intent, not by feel-in-isolation -- */
+  --ease-confident: cubic-bezier(0.16, 1, 0.3, 1);   /* deceleration, most transitions */
+  --ease-snap: cubic-bezier(0.62, 0, 0.32, 1.28);    /* decisive, the strike break */
+  --duration-fast: 120ms;     /* hover, press */
+  --duration-base: 200ms;     /* standard UI transitions */
+  --duration-lift: 320ms;     /* ticking values, row entrances */
+  --duration-settle: 1400ms;  /* ambient consequences, e.g. the struck vignette */
+
+  /* -- Stacking -- */
+  --z-ground: 0;
+  --z-content: 1;
+  --z-header: 20;
+  --z-overlay: 30;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -59,6 +97,7 @@
     --ink-soft: #a9b3a9;
     --ink-faint: #737d75;
 
+    --ground: #10140f;
     --paper: #141a17;
     --paper-raised: #1c2320;
     --paper-recessed: #10140f;
@@ -72,5 +111,7 @@
     --struck-wash: rgba(238, 171, 60, 0.14);
 
     --accent: #7fb89b;
+
+    --shadow-color: 0, 0, 0;
   }
 }

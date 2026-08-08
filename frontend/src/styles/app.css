@@ -22,9 +22,11 @@ body,
 
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--ground);
   color: var(--ink);
   font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--text-base-lh);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -68,16 +70,70 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
-/* Console shell: the record's environment, not empty slate. The ambient */
-/* field is a fixed layer behind everything, the layout grid sits above  */
-/* it (a real stacking context, isolate keeps the two from interleaving  */
-/* with anything else), rails flank the record, never compete with it.   */
+/* Ground: the app's fixed environment, behind every page. A still,      */
+/* fine grain and a soft vignette, no lines, replaces an earlier ruled   */
+/* texture that read as eye strain rather than atmosphere. A very faint  */
+/* breathe ties it to the header's real block-height poll.               */
+/* -------------------------------------------------------------------- */
+
+.ground {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-ground);
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--ground);
+}
+
+.ground__grain {
+  position: absolute;
+  inset: -1px;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cfilter%20id%3D%27n%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.85%27%20numOctaves%3D%273%27%20stitchTiles%3D%27stitch%27/%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27/%3E%3C/filter%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20filter%3D%27url%28%23n%29%27/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+}
+
+.ground__vignette {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 16rem rgba(var(--shadow-color), 0.08);
+}
+
+.ground__breathe {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  mix-blend-mode: soft-light;
+}
+
+/* -------------------------------------------------------------------- */
+/* App shell: header, footer, and the main content well every page      */
+/* renders into. Sits above the ground in its own stacking context so    */
+/* the two never interleave with page-local layers (e.g. a record's own  */
+/* struck glow).                                                         */
+/* -------------------------------------------------------------------- */
+
+.shell {
+  position: relative;
+  z-index: var(--z-content);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+.shell__main {
+  flex: 1;
+}
+
+/* -------------------------------------------------------------------- */
+/* Record page console layout: rails flank the record, never compete    */
+/* with it.                                                              */
 /* -------------------------------------------------------------------- */
 
 .console {
   position: relative;
-  min-height: 100%;
-  isolation: isolate;
 }
 
 .console__layout {
@@ -112,67 +168,18 @@ button {
   padding: clamp(1.25rem, 3.4vw, 2.25rem);
 }
 
-/* -------------------------------------------------------------------- */
-/* Ambient field: the console's ground. A fine grid standing in for an   */
-/* instrument surface, a brief brightening sweep on every real poll, an  */
-/* amber vignette that settles in, never flashes, when the record is     */
-/* struck. Fixed to the viewport, never the layout's scroll length, so   */
-/* it reads as the room the record sits in, not page background art.    */
-/* -------------------------------------------------------------------- */
-
-.ambient-field {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
+/* Struck influence, scoped to the record itself, not the whole app: the
+   card's own shadow warms toward amber and settles, never flashes, so a
+   struck record still reads as "this record" changing, not the room. */
+.record {
+  transition: box-shadow var(--duration-settle) var(--ease-confident);
 }
 
-.ambient-field__drift {
-  position: absolute;
-  inset: -60px;
-  animation: ambient-drift 140s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ambient-field__drift {
-    animation: none;
-  }
-}
-
-@keyframes ambient-drift {
-  from {
-    transform: translate(0, 0);
-  }
-  to {
-    transform: translate(-56px, -56px);
-  }
-}
-
-.ambient-field__grid,
-.ambient-field__sweep {
-  position: absolute;
-  inset: 0;
-  background-image:
-    repeating-linear-gradient(to right, var(--rule) 0, var(--rule) 1px, transparent 1px, transparent 56px),
-    repeating-linear-gradient(to bottom, var(--rule) 0, var(--rule) 1px, transparent 1px, transparent 56px);
-}
-
-.ambient-field__sweep {
-  background-image:
-    repeating-linear-gradient(to right, var(--rule-strong) 0, var(--rule-strong) 1px, transparent 1px, transparent 56px),
-    repeating-linear-gradient(to bottom, var(--rule-strong) 0, var(--rule-strong) 1px, transparent 1px, transparent 56px);
-}
-
-.ambient-field__vignette {
-  position: absolute;
-  inset: 0;
-  box-shadow: inset 0 0 0 var(--struck-wash);
-  transition: box-shadow 1.4s var(--ease-confident);
-}
-
-.ambient-field--struck .ambient-field__vignette {
-  box-shadow: inset 0 0 12rem var(--struck-wash);
+.record--struck {
+  box-shadow:
+    0 1px 2px rgba(var(--shadow-color), 0.06),
+    0 10px 28px rgba(var(--shadow-color), 0.06),
+    0 0 6rem var(--struck-wash);
 }
 
 /* -------------------------------------------------------------------- */
@@ -642,60 +649,14 @@ button {
   margin-top: var(--space-6);
   padding-top: var(--space-5);
   border-top: 1px solid var(--rule);
-}
-
-.action__button {
-  appearance: none;
-  border: 1px solid var(--ink);
-  background: transparent;
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: var(--space-3) var(--space-5);
-  border-radius: var(--radius-chip);
-  cursor: pointer;
-  transition:
-    background-color 160ms var(--ease-confident),
-    color 160ms var(--ease-confident),
-    border-color 160ms var(--ease-confident),
-    transform 120ms var(--ease-confident);
-}
-
-.action__button:hover:not(:disabled) {
-  background: var(--ink);
-  color: var(--paper-raised);
-}
-
-.action__button:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.action__button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .action__button:active:not(:disabled) {
-    transform: none;
-  }
-}
-
-.action__button--strike {
-  border-color: var(--struck);
-  color: var(--struck);
-}
-
-.action__button--strike:hover:not(:disabled) {
-  background: var(--struck);
-  color: var(--paper-raised);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
 .action__status {
-  margin-top: var(--space-3);
+  margin: 0;
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
@@ -715,5 +676,495 @@ button {
 
 .notice {
   font-size: 0.875rem;
+  color: var(--ink-faint);
+}
+
+/* -------------------------------------------------------------------- */
+/* UI primitives: the button, the card, the live dot, the address chip.  */
+/* Every surface in the app draws from these, not a one-off style.       */
+/* -------------------------------------------------------------------- */
+
+.btn {
+  appearance: none;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-confident),
+    color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident),
+    transform var(--duration-fast) var(--ease-confident);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper-raised);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn--strike {
+  border-color: var(--struck);
+  color: var(--struck);
+}
+
+.btn--strike:hover:not(:disabled) {
+  background: var(--struck);
+  color: var(--paper-raised);
+}
+
+.btn--ghost {
+  border-color: var(--rule-strong);
+  color: var(--ink-soft);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--paper-recessed);
+  color: var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 1px 2px rgba(var(--shadow-color), 0.06),
+    0 10px 28px rgba(var(--shadow-color), 0.06);
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-round);
+  background: var(--accent);
+  animation: pulse 2.6s var(--ease-confident) infinite;
+}
+
+.address-tag {
+  appearance: none;
+  border: 1px solid var(--rule-strong);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-round);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident);
+}
+
+.address-tag:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* -------------------------------------------------------------------- */
+/* App shell chrome: header, footer.                                     */
+/* -------------------------------------------------------------------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background: rgba(var(--shadow-color), 0.02);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--rule);
+}
+
+.site-header__inner {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: var(--space-4) 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.site-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: var(--ink);
+  flex: none;
+}
+
+.site-header__mark {
+  width: 1.5rem;
+  height: 1.5rem;
+  overflow: visible;
+}
+
+.site-header__wordmark {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.site-header__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex: 1;
+}
+
+.site-header__link {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink-faint);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid transparent;
+  transition:
+    color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident);
+}
+
+.site-header__link:hover {
+  color: var(--ink);
+}
+
+.site-header__link--active {
+  color: var(--ink);
+  border-bottom-color: var(--struck);
+}
+
+.site-header__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: none;
+}
+
+.site-header__chain {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
+
+.site-header__chain-dot {
+  flex: none;
+}
+
+.site-header__block {
+  color: var(--ink-faint);
+}
+
+@media (min-width: 52rem) {
+  .site-header__chain {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 52rem) {
+  .site-header__nav {
+    display: none;
+  }
+}
+
+.site-header__menu-toggle {
+  display: none;
+  appearance: none;
+  border: 1px solid var(--rule-strong);
+  background: transparent;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.site-header__menu-icon,
+.site-header__menu-icon::before,
+.site-header__menu-icon::after {
+  display: block;
+  width: 1rem;
+  height: 1px;
+  background: var(--ink);
+  transition: transform var(--duration-fast) var(--ease-confident), opacity var(--duration-fast) var(--ease-confident);
+}
+
+.site-header__menu-icon {
+  position: relative;
+}
+
+.site-header__menu-icon::before,
+.site-header__menu-icon::after {
+  content: '';
+  position: absolute;
+  left: 0;
+}
+
+.site-header__menu-icon::before {
+  top: -5px;
+}
+
+.site-header__menu-icon::after {
+  top: 5px;
+}
+
+.site-header__menu-icon--open {
+  background: transparent;
+}
+
+.site-header__menu-icon--open::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.site-header__menu-icon--open::after {
+  top: 0;
+  transform: rotate(-45deg);
+}
+
+@media (max-width: 52rem) {
+  .site-header__menu-toggle {
+    display: inline-flex;
+  }
+}
+
+.site-header__mobile-nav {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--rule);
+  padding: var(--space-2) 1.25rem var(--space-4);
+}
+
+.site-header__mobile-link {
+  padding: var(--space-3) 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+}
+
+.site-header__mobile-link:last-child {
+  border-bottom: none;
+}
+
+.site-header__mobile-link--active {
+  color: var(--struck);
+}
+
+.wallet-action-group {
+  position: relative;
+}
+
+.wallet-action {
+  white-space: nowrap;
+}
+
+.wallet-action__error {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  width: max-content;
+  max-width: 16rem;
+  font-size: var(--text-xs);
+  color: var(--struck);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-chip);
+  box-shadow: 0 4px 12px rgba(var(--shadow-color), 0.12);
+}
+
+.wallet-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-round);
+}
+
+.wallet-chip__dot {
+  flex: none;
+}
+
+.wallet-chip__disconnect {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-confident);
+}
+
+.wallet-chip__disconnect:hover {
+  color: var(--struck);
+}
+
+.site-footer {
+  border-top: 1px solid var(--rule);
+}
+
+.site-footer__inner {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: var(--space-5) 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.site-footer__line {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+.site-footer__line a {
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.site-footer__line a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* -------------------------------------------------------------------- */
+/* Generic page wrap, for pages that aren't the record console.          */
+/* -------------------------------------------------------------------- */
+
+.page-wrap {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 5rem) 1.25rem;
+}
+
+.page-wrap--center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 12rem);
+}
+
+.hero {
+  max-width: 34rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.hero__mark {
+  width: 3rem;
+  height: 3rem;
+  overflow: visible;
+  margin-bottom: var(--space-2);
+}
+
+.hero__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-display-lg);
+  line-height: var(--text-display-lg-lh);
+  letter-spacing: -0.01em;
+}
+
+.hero__lede {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.placeholder {
+  max-width: 40rem;
+}
+
+.placeholder__title {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-display-md);
+  line-height: var(--text-display-md-lh);
+  letter-spacing: -0.01em;
+}
+
+.placeholder__lede {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-base);
+  color: var(--ink-soft);
+}
+
+.positions-row {
+  margin-top: var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-chip);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    background-color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident);
+}
+
+.positions-row:hover {
+  background: var(--paper-recessed);
+  border-color: var(--rule-strong);
+}
+
+.positions-row__label {
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+
+.positions-row__meta {
+  font-size: var(--text-xs);
   color: var(--ink-faint);
 }
