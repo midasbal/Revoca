@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StandingMark } from './components/StandingMark';
+import { AnimatePresence, motion } from 'framer-motion';
+import { RingMark } from './components/RingMark';
 import { Ledger } from './components/Ledger';
 import { usePosition } from './hooks/usePosition';
 import { useLedger } from './hooks/useLedger';
+import { useStrikePhase } from './hooks/useStrikePhase';
+import { usePrevious } from './hooks/usePrevious';
 import { DEMO_BORROWER } from './deployment';
 import { GuardianReason, GuardianState, explorerAddressUrl, formatAmount, formatBps, shortAddress } from './chain';
+
+const EASE_CONFIDENT = [0.16, 1, 0.3, 1] as const;
 
 const DEMO_SERVER_URL = (import.meta.env.VITE_DEMO_SERVER_URL as string | undefined) ?? 'http://localhost:8787';
 
@@ -105,6 +110,10 @@ export default function App() {
     (position.data.guardianState === GuardianState.HEALTHY ||
       (position.data.guardianState === GuardianState.RESOLVED && position.data.compliant));
 
+  const { phase, prefersReduced, completeStrike } = useStrikePhase(struck, position.status === 'ready');
+  const prevPhase = usePrevious(phase);
+  const wordLive = phase === 'striking' || prevPhase === 'striking';
+
   const graceRemaining = useMemo(() => {
     if (position.status !== 'ready') return null;
     if (position.data.guardianState !== GuardianState.FLAGGED) return null;
@@ -122,6 +131,43 @@ export default function App() {
           </span>
         </div>
 
+        <div className="seal-band">
+          <div className="seal-band__ring">
+            <RingMark phase={position.status === 'ready' ? phase : 'valid'} prefersReduced={prefersReduced} onStrikeComplete={completeStrike} />
+          </div>
+
+          <div className="field seal-band__standing">
+            <p className="eyebrow field__label">Standing</p>
+            {position.status === 'ready' ? (
+              <>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.p
+                    key={phase === 'struck' ? 'struck' : 'valid'}
+                    className={phase === 'struck' ? 'field__value field__value--struck' : 'field__value field__value--valid'}
+                    initial={phase === 'struck' && wordLive && !prefersReduced ? { opacity: 0, y: 4 } : false}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, ease: EASE_CONFIDENT, delay: phase === 'struck' && wordLive ? 0.28 : 0 }}
+                  >
+                    {phase === 'struck' ? 'STRUCK' : 'VALID'}
+                  </motion.p>
+                </AnimatePresence>
+                <p className="field__meta">
+                  {struck ? (
+                    <>
+                      Reason: <span className="mono">{GuardianReason[position.data.guardianReason] ?? 'UNKNOWN'}</span>
+                      {position.data.guardianState === GuardianState.RESOLVED && ' · Unwind resolved'}
+                    </>
+                  ) : (
+                    <>Attested compliant and fresh, no unwind in progress</>
+                  )}
+                </p>
+              </>
+            ) : (
+              <p className="field__value field__value--loading">&hellip;</p>
+            )}
+          </div>
+        </div>
+
         <p className="record__number">
           Record No.{' '}
           <strong className="mono">
@@ -131,32 +177,8 @@ export default function App() {
           </strong>
         </p>
 
-        <div className="standing">
-          <p className="eyebrow standing__label">Standing</p>
-          {position.status === 'ready' ? (
-            <>
-              {/* Only mounted once real data exists, so its initial phase
-                  is correct from the first render, an already-struck
-                  record never plays the strike animation on page load, it
-                  only plays for a transition witnessed live. */}
-              <StandingMark struck={struck} />
-              <p className="standing__meta">
-                {struck ? (
-                  <>
-                    Reason: <span className="mono">{GuardianReason[position.data.guardianReason] ?? 'UNKNOWN'}</span>
-                    {position.data.guardianState === GuardianState.RESOLVED && ' · Unwind resolved'}
-                  </>
-                ) : (
-                  <>Attested compliant and fresh, no unwind in progress</>
-                )}
-              </p>
-            </>
-          ) : (
-            <p className="standing__word standing__word--loading">&hellip;</p>
-          )}
-          {position.status === 'loading' && <p className="notice">Reading live position&hellip;</p>}
-          {position.status === 'error' && <p className="notice">Could not read the chain: {position.message}</p>}
-        </div>
+        {position.status === 'loading' && <p className="notice">Reading live position&hellip;</p>}
+        {position.status === 'error' && <p className="notice">Could not read the chain: {position.message}</p>}
 
         {position.status === 'ready' && (
           <>

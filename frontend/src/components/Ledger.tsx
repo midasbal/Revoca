@@ -22,9 +22,9 @@ export function Ledger({ entries, nowSeconds }: { entries: LedgerEntry[]; nowSec
         <motion.li
           key={entry.key}
           className="ledger__row"
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
         >
           <span className="ledger__index mono">{String(index + 1).padStart(2, '0')}</span>
           <span className="ledger__body">

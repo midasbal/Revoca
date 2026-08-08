@@ -94,14 +94,14 @@ button {
 
 .record {
   width: 100%;
-  max-width: 42rem;
+  max-width: 38rem;
   background: var(--paper-raised);
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius-card);
   box-shadow:
     0 1px 2px rgba(27, 35, 33, 0.06),
     0 10px 28px rgba(27, 35, 33, 0.06);
-  padding: clamp(1.5rem, 4vw, 2.75rem);
+  padding: clamp(1.25rem, 3.4vw, 2.25rem);
 }
 
 /* -------------------------------------------------------------------- */
@@ -142,8 +142,81 @@ button {
   }
 }
 
+/* -------------------------------------------------------------------- */
+/* Seal band: the ring mark plus the certificate's identity fields.      */
+/* This is the record's signature moment, the ring is the seal, the      */
+/* standing and record number are fields set in deliberate relation to   */
+/* it, not centered blocks stacked on their own.                         */
+/* -------------------------------------------------------------------- */
+
+.seal-band {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 30rem) {
+  .seal-band {
+    gap: var(--space-4);
+  }
+}
+
+.seal-band__ring {
+  flex: none;
+  width: clamp(4.25rem, 15vw, 5.75rem);
+}
+
+.ring-mark {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.field {
+  min-width: 0;
+}
+
+.field__label {
+  margin-bottom: var(--space-1);
+}
+
+.field__value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1;
+  font-size: clamp(1.9rem, 6.5vw, 2.75rem);
+  letter-spacing: -0.01em;
+}
+
+.field__value--valid {
+  color: var(--ink);
+}
+
+.field__value--struck {
+  color: var(--struck);
+}
+
+.field__value--loading {
+  color: var(--ink-faint);
+}
+
+.field__meta {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+.field__meta .mono {
+  color: var(--ink-faint);
+}
+
 .record__number {
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--rule);
   color: var(--ink-faint);
   font-size: 0.8125rem;
 }
@@ -153,67 +226,14 @@ button {
   font-weight: 500;
 }
 
-/* -------------------------------------------------------------------- */
-/* Standing, the signature element                                       */
-/* -------------------------------------------------------------------- */
-
-.standing {
-  margin-top: var(--space-7);
-  margin-bottom: var(--space-6);
+.record__number a {
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-strong);
 }
 
-.standing__label {
-  margin-bottom: var(--space-2);
-}
-
-.standing__word-wrap {
-  position: relative;
-  display: inline-block;
-}
-
-.standing__word {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(2.75rem, 9vw, 5rem);
-  line-height: 0.94;
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-
-.standing__word--valid {
-  color: var(--valid);
-}
-
-.standing__word--grace {
-  color: var(--grace);
-}
-
-.standing__word--struck {
-  color: var(--struck);
-}
-
-.standing__word--loading {
-  color: var(--ink-faint);
-}
-
-.standing__strike-line {
-  position: absolute;
-  left: -2%;
-  right: -2%;
-  top: 52%;
-  height: 0.09em;
-  background: var(--struck);
-  transform-origin: left center;
-}
-
-.standing__meta {
-  margin-top: var(--space-3);
-  color: var(--ink-soft);
-  font-size: 0.875rem;
-}
-
-.standing__meta .mono {
-  color: var(--ink-faint);
+.record__number a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 /* -------------------------------------------------------------------- */
@@ -224,7 +244,7 @@ button {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin: var(--space-6) 0 var(--space-5);
+  margin: var(--space-5) 0 var(--space-4);
 }
 
 .ruled::before,
@@ -253,6 +273,11 @@ button {
   .stats {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+.stat {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
 }
 
 .stat__label {

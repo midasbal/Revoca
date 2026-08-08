@@ -3,8 +3,12 @@
 
   Reference world: a notarial/registrar record, not a SaaS dashboard and
   not a newspaper. A cool, institutional register stock (not warm cream),
-  ink-toned type (not neutral near-black), one reserved saturated color
-  for the struck state (not a decorative accent used everywhere).
+  ink-toned type (not neutral near-black). Color carries exactly one
+  meaningful signal, the brand's own amber, reserved for the struck /
+  revoked state, sampled directly from revoca-logo.jpeg's broken ring
+  (measured ~#F4AB10). Valid standing is deliberately NOT green, it's the
+  same cool ink/off-white the ring is drawn in at rest, calm and neutral,
+  so amber reads as the one moment something changed.
 */
 
 :root {
@@ -20,12 +24,10 @@
   --rule: rgba(27, 35, 33, 0.14);      /* hairline rule, derived from ink */
   --rule-strong: rgba(27, 35, 33, 0.28);
 
-  --valid: #2f6f4e;             /* certification green, "in good standing" */
-  --valid-wash: rgba(47, 111, 78, 0.1);
-  --grace: #93620f;             /* ochre, in-grace / pending */
+  --grace: #93620f;             /* ochre, in-grace / pending, distinct from the struck amber */
   --grace-wash: rgba(147, 98, 15, 0.12);
-  --struck: #8c1f2b;            /* oxblood, the ONE reserved saturated color */
-  --struck-wash: rgba(140, 31, 43, 0.1);
+  --struck: #c7841a;            /* the brand's amber, sampled from the logo's broken ring, the ONE reserved saturated color */
+  --struck-wash: rgba(199, 132, 26, 0.12);
 
   --accent: #2f5142;            /* deep pine, live-pulse + interactive elements */
 
@@ -48,6 +50,7 @@
   --radius-chip: 2px;
 
   --ease-confident: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.62, 0, 0.32, 1.28);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -63,12 +66,10 @@
     --rule: rgba(231, 235, 228, 0.14);
     --rule-strong: rgba(231, 235, 228, 0.26);
 
-    --valid: #6fbd93;
-    --valid-wash: rgba(111, 189, 147, 0.12);
     --grace: #d9a441;
     --grace-wash: rgba(217, 164, 65, 0.12);
-    --struck: #e2626f;
-    --struck-wash: rgba(226, 98, 111, 0.12);
+    --struck: #eeab3c;
+    --struck-wash: rgba(238, 171, 60, 0.14);
 
     --accent: #7fb89b;
   }
