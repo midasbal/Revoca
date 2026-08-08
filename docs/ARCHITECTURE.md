@@ -69,9 +69,27 @@ and revert-fails-closed) and
 `contracts/test/HybridComplianceGateMonadFork.t.sol` (real integration
 test against the real validator on live Monad testnet, using the
 already-registered probe pool from docs/DESIGN_A_SPIKE.md, no mock data).
-Not yet done: registering the real `LendingPool` with the validator, that
-is a later deploy step once the pool contract is stable, see
-docs/ROADMAP.md.
+The real `LendingPool` has since been registered with the validator too
+(real `validator/grant` + `validator/register`, real testnet deployment,
+see docs/DESIGN_A_SPIKE.md's window-session findings), and a full real
+position lifecycle, borrow, a real Cleanverse freeze, `complianceVerify`
+flipping to `false`, flag, grace, self-cure, liquidation spillover,
+resolution, has been driven through it end to end, all real transactions,
+no mock data. That deployment remains PROVISIONAL (the pool will be
+redeployed again once the pluggable unwind lands, per docs/ROADMAP.md's
+refinement backlog), not the final registered production deployment.
+
+**A documented boundary divergence, worth knowing before ever setting a
+real on-chain rule.** The CCP integration guide phrases the validator's
+`RuleV2`/Rule-object `min_tier`/`min_sub_tier` fields as "a user is
+allowed if the user's A-Pass tier/subTier is greater than this value"
+(strictly greater), while `CompliancePolicy.isTierEligible` treats an
+exact `tier == minTier` match together with `subTier >= minSubTier` as
+eligible too, an inclusive boundary. This is irrelevant today, our
+registered on-chain rule is `(min_tier: 0, min_sub_tier: 0)`, "no
+restriction," so the boundary never gets exercised, but it's a real,
+known divergence to account for if a non-zero on-chain rule is ever
+configured to mirror `CompliancePolicy`'s own thresholds exactly.
 
 **Formerly an open blocker, now resolved.** Registering a pool with the
 validator, `POST /api/cooperate/validator/register`, had failed on Monad
