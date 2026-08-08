@@ -7,6 +7,7 @@
 @import '@fontsource/ibm-plex-mono/400.css';
 @import '@fontsource/ibm-plex-mono/500.css';
 @import './tokens.css';
+@import './landing.css';
 
 *,
 *::before,
@@ -1070,53 +1071,6 @@ button {
   max-width: 78rem;
   margin: 0 auto;
   padding: clamp(2rem, 6vw, 5rem) 1.25rem;
-}
-
-.page-wrap--center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 12rem);
-}
-
-.hero {
-  max-width: 34rem;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.hero__mark {
-  width: 3rem;
-  height: 3rem;
-  overflow: visible;
-  margin-bottom: var(--space-2);
-}
-
-.hero__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: var(--text-display-lg);
-  line-height: var(--text-display-lg-lh);
-  letter-spacing: -0.01em;
-}
-
-.hero__lede {
-  margin: 0;
-  font-size: var(--text-md);
-  line-height: 1.55;
-  color: var(--ink-soft);
-}
-
-.hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
 }
 
 .placeholder {

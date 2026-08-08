@@ -1,0 +1,256 @@
+/* ---------------------------------------------------------------------- */
+/* Landing: the hero photograph, then a long scroll narrative.             */
+/* ---------------------------------------------------------------------- */
+
+.hero-full {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hero-full__frame {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.hero-full__image {
+  position: absolute;
+  inset: -4% 0;
+  background-image: url('/revoca-hero.jpeg');
+  background-size: cover;
+  background-position: 24% 46%;
+}
+
+.hero-full__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%3E%3Cfilter%20id%3D%27n%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.85%27%20numOctaves%3D%273%27%20stitchTiles%3D%27stitch%27/%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27/%3E%3C/filter%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20filter%3D%27url%28%23n%29%27/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  mix-blend-mode: overlay;
+}
+
+.hero-full__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 11, 9, 0.24);
+}
+
+.hero-full__content {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: clamp(3.5rem, 10vw, 6.5rem);
+  width: min(88%, 33rem);
+  margin-right: clamp(1.25rem, 6vw, 5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  text-align: left;
+}
+
+.hero-full__eyebrow {
+  color: rgba(243, 245, 238, 0.72);
+}
+
+.hero-full__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.75rem, 4.4vw, 2.75rem);
+  line-height: 1.16;
+  letter-spacing: -0.01em;
+  color: #f3f5ee;
+}
+
+.hero-full__lede {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: rgba(243, 245, 238, 0.8);
+  max-width: 30rem;
+}
+
+.hero-full__scroll-cue {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: clamp(1.25rem, 3.4vw, 2rem);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: rgba(243, 245, 238, 0.62);
+}
+
+.hero-full__scroll-line {
+  width: 1px;
+  height: 2.25rem;
+  background: rgba(243, 245, 238, 0.5);
+}
+
+.hero-full__scroll-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 40rem) {
+  .hero-full__content {
+    width: min(90%, 26rem);
+    bottom: clamp(3rem, 12vw, 5rem);
+    margin-right: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-full__scroll-cue {
+    opacity: 0.7;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* The narrative                                                          */
+/* ---------------------------------------------------------------------- */
+
+.narrative {
+  position: relative;
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.scroll-progress {
+  position: sticky;
+  top: 3.75rem;
+  z-index: var(--z-content);
+  height: 2px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.scroll-progress__bar {
+  height: 100%;
+  width: 100%;
+  background: var(--struck);
+  transform-origin: left;
+}
+
+.narrative-section {
+  padding: clamp(4.5rem, 12vw, 8.5rem) 0;
+}
+
+.narrative-section__inner {
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  text-align: left;
+}
+
+.narrative-section--left .narrative-section__inner {
+  margin-right: auto;
+}
+
+.narrative-section--right .narrative-section__inner {
+  margin-left: auto;
+}
+
+.narrative-section__mark {
+  margin: 0;
+}
+
+.narrative-section__narration {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.4rem, 3.1vw, 2.125rem);
+  line-height: 1.28;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+
+.narrative-section__fact {
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.narrative-section__texture {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+.narrative-section--break {
+  padding-top: clamp(5.5rem, 14vw, 10rem);
+  padding-bottom: clamp(5.5rem, 14vw, 10rem);
+}
+
+.narrative-ring-wrap {
+  width: clamp(4.5rem, 12vw, 6rem);
+  margin: var(--space-1) 0;
+}
+
+.narrative-ring {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.narrative-close {
+  padding: clamp(5rem, 13vw, 9rem) 0 clamp(4.5rem, 10vw, 7rem);
+  text-align: center;
+  border-top: 1px solid var(--rule);
+}
+
+.narrative-close__inner {
+  max-width: 36rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.narrative-close__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-display-md);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.narrative-close__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.narrative-close__footnote {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+@media (max-width: 40rem) {
+  .narrative-section__inner {
+    margin-left: 0;
+    margin-right: 0;
+    max-width: 100%;
+  }
+}

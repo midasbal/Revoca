@@ -1,5 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="3" fill="#1b2321"/>
-  <circle cx="16" cy="16" r="9" fill="none" stroke="#e6e9e1" stroke-width="1.6"/>
-  <line x1="9" y1="16.5" x2="23" y2="15.5" stroke="#8c1f2b" stroke-width="2"/>
+  <style>
+    .ring { stroke: #1b2321; }
+    .break { stroke: #c7841a; }
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #e7ebe4; }
+      .break { stroke: #eeab3c; }
+    }
+  </style>
+  <circle class="ring" cx="16" cy="16" r="10.5" fill="none" stroke-width="2.6" stroke-linecap="round"
+    stroke-dasharray="56.08 9.90" transform="rotate(-90 16 16)"/>
+  <circle class="break" cx="16" cy="16" r="12.7" fill="none" stroke-width="2.2" stroke-linecap="round"
+    stroke-dasharray="11.97 67.83" stroke-dashoffset="-67.83" transform="rotate(-90 16 16)"/>
 </svg>
