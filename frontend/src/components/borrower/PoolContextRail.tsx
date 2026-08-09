@@ -4,18 +4,25 @@ import { formatAmount, formatBps } from '../../chain';
 const SECONDS_PER_YEAR = 31_536_000n;
 
 /**
- * The borrow surface's left margin, filled with what it was empty of:
- * the pool this borrower is actually drawing against. Same live reads
- * PoolPage uses, not a separate model, real numbers or nothing.
+ * The left margin on both the borrower and lender surfaces, filled with
+ * what it was empty of: the one real pool either side actually deals
+ * with. Same live reads PoolPage uses, not a separate model, real
+ * numbers or nothing. `variant` only changes the intro line's framing,
+ * borrower or lender, the data underneath is identical either way, the
+ * same pool.
  */
-export function PoolContextRail() {
+export function PoolContextRail({ variant = 'borrower' }: { variant?: 'borrower' | 'lender' }) {
   const pool = usePoolState();
 
   return (
     <aside className="rail rail--pool" aria-label="Pool context">
       <div className="rail__block">
         <p className="eyebrow rail__label">The pool</p>
-        <p className="rail__prose">What you borrow against: one shared pool, its liquidity and utilization read live, the same state every borrower and lender sees.</p>
+        <p className="rail__prose">
+          {variant === 'borrower'
+            ? 'What you borrow against: one shared pool, its liquidity and utilization read live, the same state every borrower and lender sees.'
+            : 'What you supply into: one shared pool, its liquidity and utilization read live, the same state every borrower and lender sees.'}
+        </p>
       </div>
 
       {pool.status === 'ready' && (

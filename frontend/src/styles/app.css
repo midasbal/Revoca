@@ -1383,13 +1383,14 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
-/* Borrower layout: the same console proportions as the record view, the */
-/* pool this borrower draws against on the left, this position's real    */
-/* standing/unwind status on the right, real content filling the         */
-/* margins a single centered card would otherwise leave empty.           */
+/* Surface layout: the same console proportions as the record view,      */
+/* shared by both borrower and lender modes so toggling between them     */
+/* feels like one composed app, real context flanking real content,      */
+/* filling the margins a single centered card would otherwise leave      */
+/* empty.                                                                */
 /* -------------------------------------------------------------------- */
 
-.borrower-layout {
+.surface-layout {
   display: grid;
   grid-template-columns: minmax(0, 13rem) minmax(0, 44rem) minmax(0, 13rem);
   justify-content: center;
@@ -1397,7 +1398,7 @@ button {
   gap: clamp(1.5rem, 3vw, 3rem);
 }
 
-.borrower-layout__content {
+.surface-layout__content {
   min-width: 0;
 }
 
@@ -1427,13 +1428,13 @@ button {
 }
 
 @media (max-width: 64rem) {
-  .borrower-layout {
+  .surface-layout {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Stacked, the borrower's own card and actions should read first, the
-     ambient pool context and the standing note follow, not precede it. */
-  .borrower-layout__content {
+  /* Stacked, the main card and actions should read first, the ambient
+     pool context and the note rail follow, not precede it. */
+  .surface-layout__content {
     order: 1;
   }
 

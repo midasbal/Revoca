@@ -134,7 +134,7 @@ export default function LandingPage() {
             </p>
             <div className="narrative-close__actions">
               <Link to="/lend">
-                <Button>Connect your wallet, enter Revoca</Button>
+                <Button>Take up a standing</Button>
               </Link>
             </div>
             <p className="narrative-close__footnote mono">Live on Monad testnet.</p>

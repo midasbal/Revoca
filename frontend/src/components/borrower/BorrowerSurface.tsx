@@ -43,10 +43,10 @@ export function BorrowerSurface({
   const borrowRoom = maxDebt > standing.debt ? maxDebt - standing.debt : 0n;
 
   return (
-    <div className="borrower-layout">
+    <div className="surface-layout">
       <PoolContextRail />
 
-      <div className="borrower-layout__content">
+      <div className="surface-layout__content">
         <div className="borrower-card">
           <div className="record__header">
             <span className="eyebrow">Revoca &middot; Your standing</span>
