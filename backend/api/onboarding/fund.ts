@@ -4,8 +4,12 @@
  * that already has standing, see backend/src/onboarding/fund.ts.
  */
 import { isAddress } from "viem";
-import { handlePreflight, readJsonBody, sendJson, type MinimalRequest, type MinimalResponse } from "../_http.js";
+import { clientIp, handlePreflight, readJsonBody, sendJson, type MinimalRequest, type MinimalResponse } from "../_http.js";
 import { fundBorrower, InvalidFundAmountError } from "../../src/onboarding/fund.js";
+import { enforceRateLimit, RateLimitExceededError } from "../../src/onboarding/rateLimit.js";
+
+const ADDRESS_LIMIT = { max: 1, windowMs: 2 * 60_000 }; // one fund attempt per address per 2 minutes
+const IP_LIMIT = { max: 5, windowMs: 10 * 60_000 }; // five fund attempts per caller IP per 10 minutes
 
 export const config = { maxDuration: 30 };
 
@@ -46,6 +50,17 @@ export default async function handler(req: MinimalRequest, res: MinimalResponse)
       sendJson(res, 400, { error: "`amount` must be a raw 18-decimal integer string." });
       return;
     }
+  }
+
+  try {
+    enforceRateLimit(`fund:addr:${body.address.toLowerCase()}`, ADDRESS_LIMIT.max, ADDRESS_LIMIT.windowMs);
+    enforceRateLimit(`fund:ip:${clientIp(req)}`, IP_LIMIT.max, IP_LIMIT.windowMs);
+  } catch (err) {
+    if (err instanceof RateLimitExceededError) {
+      sendJson(res, 429, { error: err.message });
+      return;
+    }
+    throw err;
   }
 
   try {

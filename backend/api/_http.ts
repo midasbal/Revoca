@@ -57,3 +57,11 @@ export function sendJson(res: MinimalResponse, status: number, body: unknown): v
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(body));
 }
+
+/** Best-effort caller IP, used only for the in-memory rate limiter (see src/onboarding/rateLimit.ts), never trusted for anything security-critical on its own. Most serverless hosts (Vercel included) set x-forwarded-for themselves, so it isn't attacker-spoofable in that deployment even though the header is nominally client-controlled. */
+export function clientIp(req: MinimalRequest): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  if (first) return first.split(",")[0]!.trim();
+  return req.socket?.remoteAddress ?? "unknown";
+}
