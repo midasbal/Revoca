@@ -148,19 +148,28 @@ this introduces and its bounds.
 
 - **LendingPool**, deposit / borrow / repay / liquidate, tier-scaled
   collateral ratios (fixed lookup table, not dynamic).
-- **RevocationGuardian**, self-contained unwind logic. Given a position whose
-  borrower has failed a compliance re-check, resolves it to a defined,
-  auditable outcome (repay-from-collateral, liquidate, grace period, etc.,
-  design TBD, see [docs/THREAT_MODEL.md](THREAT_MODEL.md)).
+- **RevocationGuardian**, self-contained unwind logic, built and tested, see
+  [docs/THREAT_MODEL.md](THREAT_MODEL.md) for the security analysis it's
+  built against: `HEALTHY -> FLAGGED -> UNWINDING -> RESOLVED`, self-cure
+  from the borrower's own collateral before any liquidator is ever
+  involved, a grace window with full reinstatement, and residual
+  collateral always returned once debt clears, even to a still-non-compliant
+  borrower.
 - **Backend keeper**, polls `query_apass` / `validator/verify` for open
   positions, and triggers `RevocationGuardian` when a borrower's status,
   tier, or expiration no longer satisfies the position's requirements.
 - **Cleanverse client** (backend), wraps `api-id` header, AES
   encrypt/decrypt for encrypted endpoints, and owner-signature construction
   for `register`/`grant`.
-- **React dashboard**, borrower view (position, collateral ratio, A-Pass
-  status) and lender view (pool health, outstanding positions, unwind
-  events).
+- **React frontend** (`frontend/`, built): the landing page; a lending app
+  at `/lend` with a borrower view (live standing, tier-scaled collateral
+  ratio, post/borrow/repay/withdraw) and a lender view (deposit/withdraw,
+  live pool utilization) behind one toggle, plus real onboarding for a
+  wallet with no A-Pass; a live positions registry (`/positions`); the
+  single-record view (`/positions/:address`); the pool's compliance-risk
+  view (`/pool`); and the technical docs (`/docs`). Reads Monad testnet
+  directly via viem; the backend is only in the path for the one action
+  that needs a secret (onboarding's provisioning call).
 
 ## Data flow (text diagram)
 
@@ -177,6 +186,7 @@ this introduces and its bounds.
                   │   Backend (Node/TS)             │
                   │   - Cleanverse client            │
                   │   - Keeper (polls open positions)│
+                  │   - Onboarding (deployable api/) │
                   └───────┬───────────────┬─────────┘
                           │               │
              (Design B)   │               │  RPC (read/write)
@@ -185,14 +195,16 @@ this introduces and its bounds.
                           └─────▶│  Monad testnet    │
                                  │  - LendingPool     │
                                  │  - RevocationGuard.│
-                                 │  - Validator (if   │
-                                 │    on-chain, Des. A)│
+                                 │  - HybridComplianceGate,│
+                                 │    ValidatorGated,  │
+                                 │    real Validator   │
                                  └────────┬───────────┘
                                           │ read state / events
                                           ▼
                                  ┌──────────────────┐
-                                 │ React dashboard   │
-                                 │ (borrower/lender) │
+                                 │ React frontend    │
+                                 │ (borrower/lender/  │
+                                 │  registry/pool/docs)│
                                  └──────────────────┘
 ```
 
@@ -209,12 +221,15 @@ depends on a locally-run backend process. It reads live testnet state
 directly via viem wherever a read doesn't need a secret (positions,
 guardian state, tier, ledger events, block height). Anything that needs a
 secret (the Cleanverse API key, the attestor key, the deployer key, the
-per-action calls documented as typed stubs in
-`frontend/src/api/backendContract.ts`, onboarding/provisioning, freezing,
-driving an unwind) goes through a backend that is built to be deployed as
-small, stateless, serverless-friendly functions (each request carries the
+per-action calls typed in `frontend/src/api/backendContract.ts`, real
+onboarding/provisioning today, freezing and driving an unwind planned)
+goes through a backend built to be deployed as small, stateless,
+serverless-friendly functions (`backend/api/`, each request carries the
 address it acts on rather than relying on server session state), never a
-process anyone runs on their own machine. The now-removed
-`backend/src/server/demoServer.ts` was a local-only stand-in for the
-single-record demo pass; its replacement is the deployed backend, not
-another local server.
+process anyone runs on their own machine. Onboarding's provisioning
+endpoint is implemented and tested against the real sandbox and real
+Monad testnet (see `backend/DEPLOY.md` for deploying it); it has not yet
+been deployed to a public URL. The now-removed
+`backend/src/server/demoServer.ts` was a local-only stand-in for an
+earlier single-record demo pass; its replacement is the deployed
+backend, not another local server.

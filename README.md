@@ -14,8 +14,9 @@ collateral first, a grace period before anything drastic happens, permissionless
 liquidation only if self-cure isn't enough, and full reinstatement if
 compliance is restored in time.
 
-Target chain: Monad testnet, via the Cleanverse UAT sandbox (running on
-local anvil today; see Current status and scope below). Track: DeFi
+Target chain: Monad testnet, via the Cleanverse UAT sandbox. The full
+contract stack is deployed there (provisional, redeployed as the
+contracts evolve; see Current status and scope below). Track: DeFi
 (Compliant DeFi), built for the Cleanverse Build hackathon.
 
 ## The problem
@@ -38,14 +39,29 @@ than tier being a one-time, binary pass/fail gate.
 
 ### The attestor path (Design B), and why it's primary
 
-Cleanverse's on-chain Validator does not appear to be deployed on Monad in
+**Update, resolved.** The paragraph below records an early, since-superseded
+finding: at the time it was written, Cleanverse's on-chain Validator
+appeared unreachable on Monad. A later read-only probe against the real
+Validator address on live Monad testnet found real bytecode there and a
+working `complianceVerify` call, so the Validator is in fact live on
+Monad; the earlier `12026`/`12027` errors reflected the Cleanverse API's
+own on-chain read path, not an absent contract. The real architecture is
+a hybrid, not attestor-only: `HybridComplianceGate.sol` gates
+eligibility against the real on-chain Validator (Design A), while the
+attestor below remains permanently required as the only source of a
+borrower's actual tier number, since `complianceVerify` returns a
+pass/fail boolean, never a tier. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full, current
+account. The original reasoning is kept below for the record.
+
+Cleanverse's on-chain Validator did not appear to be deployed on Monad in
 the UAT sandbox: `validator/verify` and `validator/is_register` both return
 error code `12027` ("Validator on-chain read failed") against Monad,
 regardless of the address tested, and a separate report from another team
 building on the sandbox found `validator/grant` returning `12026`
 ("apass compliance validator address not configured for chain: monad") for
 both Monad and Ethereum. Two independent signals pointing the same way is
-real, not conclusive, but it's why Revoca is built primary against an
+real, not conclusive, but it's why Revoca was built primary against an
 off-chain attestor rather than a direct on-chain Validator read.
 
 A backend attestor reads a borrower's real A-Pass state from Cleanverse
@@ -68,10 +84,12 @@ time.
 
 `LendingPool` and `RevocationGuardian` are written against three small
 interfaces, `IComplianceGate`, `ITierOracle`, and `ICountrySource`, and
-`ComplianceRegistry` implements all three. If Cleanverse ever confirms a real
-on-chain Validator on a given chain, an on-chain-read implementation of the
-same interfaces would slot in without touching pool or guardian code at all.
-That swap has not been built; the seam for it has.
+`ComplianceRegistry` implements all three. That on-chain-read swap, now
+that the real Validator is confirmed live on Monad, has since been
+built: `HybridComplianceGate.sol` implements the same interfaces against
+the real Validator, deployed and proven on live Monad testnet, with zero
+changes to `LendingPool` or `RevocationGuardian`, exactly what the seam
+was built for.
 
 ### The unwind: RevocationGuardian's state machine
 
@@ -112,7 +130,7 @@ Every position moves through four states:
                 (query_apass, validator/verify, ...)
                               |
                               | HTTPS reads (live); encrypted writes
-                              | implemented but not yet exercised live
+                              | (register/grant/rules) also proven live
                               v
                  +------------------------------+
                  |      Backend (Node/TS)        |
@@ -128,7 +146,7 @@ Every position moves through four states:
                    relayed permissionlessly
                                  v
    +----------------------------------------------------------+
-   |                Monad testnet (local anvil today)          |
+   |                Monad testnet (live, provisional deploy)   |
    |                                                            |
    |   ComplianceRegistry  (facts + freshness; implements       |
    |         |               IComplianceGate/ITierOracle/       |
@@ -155,8 +173,8 @@ Every position moves through four states:
 
 ## What's built and tested
 
-Verified locally before writing this document: `forge test` passes 176 of
-177 tests across 12 suites in `contracts/` (the 1 skip only happens when
+Verified locally before writing this update: `forge test` passes 182 of
+183 tests across 13 suites in `contracts/` (the 1 skip only happens when
 `MONAD_TESTNET_RPC` isn't available to `forge`, that one suite is a real,
 no-mock-data integration test against the live Monad testnet validator, see
 `contracts/test/HybridComplianceGateMonadFork.t.sol`), and the backend's
@@ -237,6 +255,33 @@ attestor key so a third party can verify who produced it. Event queries are
 paged in bounded block chunks rather than one unbounded request, since real
 RPC providers commonly cap `eth_getLogs` by block range or response size.
 
+**Deployed to real Monad testnet** (`frontend/src/deployment.ts` holds the
+current addresses; provisional, redeployed as the contracts evolve): the
+full stack, `CompliancePolicy`, `ComplianceRegistry`, `HybridComplianceGate`,
+`LendingPool`, `RevocationGuardian`, is live there, not local `anvil` only.
+The deployed gate runs in `ValidatorGated` mode, checking eligibility
+against Cleanverse's real on-chain Validator directly, with
+`ComplianceRegistry` still supplying the tier value. The full loop, real
+`generate_apass`, a real signed attestation landing on chain, a real
+borrow, has been driven end to end against this live deployment, not
+simulated.
+
+**Frontend** (`frontend/`, React + viem/wagmi): built, not a placeholder.
+Landing page; a lending app at `/lend` with a borrower view (live A-Pass
+standing, the real tier-scaled collateral ratio, post/borrow/repay/withdraw
+as real transactions) and a lender view (deposit/withdraw, live pool
+utilization) behind one toggle; real onboarding for a wallet with no
+A-Pass yet (provisions a real A-Pass, attests it on chain, funds real
+testnet gas and rtUSD); `/positions`, a live registry of every open
+position in the pool; `/positions/:address`, the single-record view; `/pool`,
+the pool's compliance-risk composition; `/docs`, the technical reference.
+Every read goes straight to Monad testnet via viem; the one action that
+needs a secret (onboarding's provisioning call) goes through the backend
+described above, built deployable as small serverless functions
+(`backend/api/`, see `backend/DEPLOY.md`), never a process run locally to
+serve the app. Runs today with `npm run dev`; not yet deployed to a public
+URL, see Current status and scope below.
+
 ## Compliance and security properties
 
 - **Freshness is a separate question from compliance.** A stale-but-once-true
@@ -263,37 +308,57 @@ RPC providers commonly cap `eth_getLogs` by block range or response size.
 
 ## Current status and scope
 
-Everything described above is proven against a real local `anvil` chain, and
-read-only calls (`query_apass`, `validator/verify`, and others) have been
-exercised against the real Cleanverse UAT sandbox. The following has not
-been done yet:
+This section describes what actually exists right now, not the plan or the
+history, those live in `docs/ROADMAP.md` and the "Update" notes above.
 
-- No deployment of the real `LendingPool`/`RevocationGuardian`/
-  `ComplianceRegistry` stack to Monad testnet yet, still local `anvil`
-  only. A throwaway probe contract has been deployed to real Monad
-  testnet and successfully registered with Cleanverse's real on-chain
-  Validator, live encrypted write calls (`validator/grant`,
-  `validator/register`) have genuinely succeeded against the sandbox, see
-  `HybridComplianceGate.sol` below, but the real pool itself is not yet
-  deployed or registered.
-- The frontend does not exist yet, `frontend/` is a placeholder.
-- On-chain enforcement via the real Cleanverse Validator contract (Design
-  A) is implemented (`HybridComplianceGate.sol`, see below) and proven
-  against live Monad testnet state, but not yet wired into a real deployed
-  `LendingPool`.
-- The interest model is simple linear interest, not utilization-based.
-  Liquidation is all-or-nothing (a liquidator must repay the full
+**Built and live:**
+
+- The full contract stack, `CompliancePolicy`, `ComplianceRegistry`,
+  `HybridComplianceGate`, `LendingPool`, `RevocationGuardian`, is deployed
+  to real Monad testnet (provisional, see `frontend/src/deployment.ts` for
+  current addresses; it will be redeployed again as the contracts keep
+  evolving, that is expected, not a gap).
+- The deployed pool is registered with Cleanverse's real on-chain
+  Validator, and its gate runs in `ValidatorGated` mode: eligibility is
+  checked with a real, live on-chain call to that Validator, not the
+  attestor, fail-closed to "not compliant" if that call ever reverts.
+  `ComplianceRegistry` remains the tier-number source either way, since
+  the Validator only ever returns a pass/fail boolean.
+- A full position lifecycle, borrow, a real Cleanverse freeze,
+  `complianceVerify` flipping to `false`, flag, grace, self-cure,
+  liquidation spillover, resolution, has been driven through this live
+  deployment end to end with real transactions, no mock data.
+- The frontend is built, not a placeholder: the landing page, a lending
+  app (`/lend`, borrower and lender views behind one toggle, plus real
+  onboarding that provisions a real A-Pass, attests it on chain, and
+  funds real testnet gas and rtUSD), a live positions registry
+  (`/positions`), the single-record view (`/positions/:address`), the
+  pool's compliance-risk view (`/pool`), and the technical docs (`/docs`).
+  It reads Monad testnet directly via viem and runs today with
+  `npm run dev`.
+- The interest model is utilization-based (a two-slope curve with an
+  owner-configurable kink), not flat linear interest, see `LendingPool.sol`.
+
+**Not yet done:**
+
+- Neither the frontend nor the backend is deployed to a public URL yet.
+  The backend is built deployable as small serverless functions
+  (`backend/api/`, see `backend/DEPLOY.md`) specifically so it never has
+  to run on anyone's own machine to serve the app, but the actual deploy
+  step hasn't happened yet. The frontend builds clean and is
+  deploy-ready. This is the main remaining gap before submission.
+- Liquidation is still all-or-nothing (a liquidator must repay the full
   outstanding debt), not partial.
+- Cross-pool revocation propagation, native token, ZK identity, and the
+  rest of `docs/ROADMAP.md`'s backlog remain explicitly out of scope.
 
-The attestor is a trusted off-chain signer of facts. That trust boundary is
-explicit, not hidden: a compromised attestor key could sign false facts for
-any address, bounded by `CompliancePolicy` (it cannot grant eligibility the
-policy itself forbids) and by a maximum staleness window (a forged
-attestation stops being usable once it ages out, forcing a fresh one). This
-is the accepted tradeoff of Design B, adopted because no on-chain Validator
-appears reachable on Monad in the sandbox today; it is not presented as
-equivalent to a direct on-chain read, and Design A remains a drop-in
-replacement behind the same interfaces if that ever changes.
+The attestor is a trusted off-chain signer of facts regardless of gate
+mode. That trust boundary is explicit, not hidden: a compromised attestor
+key could sign false facts for any address, bounded by `CompliancePolicy`
+(it cannot grant eligibility the policy itself forbids) and by a maximum
+staleness window (a forged attestation stops being usable once it ages
+out, forcing a fresh one). See `docs/THREAT_MODEL.md` item 9 for the full
+analysis.
 
 ## Building and running
 
@@ -357,6 +422,18 @@ cd backend
 npm run keeper:dry-run
 ```
 
+Frontend, reads real Monad testnet state directly, never needs a locally
+running backend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Deploying the backend as serverless functions (so onboarding works without
+anyone running it locally) is documented in `backend/DEPLOY.md`.
+
 ## Repo layout
 
 ```
@@ -364,12 +441,17 @@ contracts/   Foundry project: CompliancePolicy, ComplianceRegistry,
              LendingPool, RevocationGuardian, the compliance seams, and
              the Forge test suite.
 backend/     Node/TS: the Cleanverse API client, the EIP-712 attestor, the
-             keeper, the event-sourced audit report builder, and the
-             vitest suite (unit tests, the local anvil rehearsal, and the
-             adversarial scenario suite).
+             keeper, the event-sourced audit report builder, the real
+             borrower-onboarding logic, and api/, the deployable
+             serverless functions that expose it (see DEPLOY.md). Plus
+             the vitest suite (unit tests, the local anvil rehearsal, and
+             the adversarial scenario suite).
 docs/        PROJECT.md (scope and non-goals), ARCHITECTURE.md (the
              Design A/B decision in full), THREAT_MODEL.md (the security
              analysis this repo is built against), AUDIT_REPORT.md (the
              audit report's design and event-coverage analysis).
-frontend/    Not yet built.
+frontend/    React + viem/wagmi. Landing page, the lending app (borrower
+             and lender views, real onboarding), the positions registry,
+             the single-record view, the pool risk view, and the docs
+             page. Runs with npm run dev, reads Monad testnet directly.
 ```
