@@ -20,7 +20,7 @@ export function Hero() {
   return (
     <section className="hero-full" ref={ref}>
       <div className="hero-full__frame">
-        <motion.div className="hero-full__image" style={prefersReduced ? undefined : { y: imageY }} />
+        <motion.div className="hero-full__image" style={{ y: prefersReduced ? 0 : imageY, scale: 1.2 }} />
         <div className="hero-full__grain" aria-hidden="true" />
         <div className="hero-full__scrim" aria-hidden="true" />
       </div>

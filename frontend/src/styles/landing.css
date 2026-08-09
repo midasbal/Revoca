@@ -19,10 +19,10 @@
 
 .hero-full__image {
   position: absolute;
-  inset: -4% 0;
+  inset: -6%;
   background-image: url('/revoca-hero.jpeg');
   background-size: cover;
-  background-position: 24% 46%;
+  background-position: 4% 44%;
 }
 
 .hero-full__grain {
@@ -45,7 +45,7 @@
   z-index: 1;
   right: 0;
   bottom: clamp(3.5rem, 10vw, 6.5rem);
-  width: min(88%, 33rem);
+  width: clamp(14rem, 30vw, 25rem);
   margin-right: clamp(1.25rem, 6vw, 5rem);
   display: flex;
   flex-direction: column;
@@ -102,11 +102,53 @@
   text-transform: uppercase;
 }
 
+/* Below this width, overlaying the thesis on the photo stops working, the
+   image's own composition (ring left, break, open slate right) needs a
+   wide frame to read. Rather than force that composition into a tall
+   narrow crop, the image becomes a fixed band at top and the words move
+   into normal flow beneath it, on the app's own ground, no overlay, no
+   scrim needed. */
 @media (max-width: 40rem) {
+  .hero-full {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .hero-full__frame {
+    position: relative;
+    height: 58vh;
+    min-height: 20rem;
+  }
+
+  .hero-full__image {
+    background-position: 40% 42%;
+  }
+
   .hero-full__content {
-    width: min(90%, 26rem);
-    bottom: clamp(3rem, 12vw, 5rem);
-    margin-right: 1.25rem;
+    position: relative;
+    z-index: 1;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    margin: 0;
+    padding: clamp(2rem, 9vw, 3rem) 1.25rem clamp(2.5rem, 10vw, 4rem);
+  }
+
+  .hero-full__eyebrow {
+    color: var(--ink-soft);
+  }
+
+  .hero-full__title {
+    color: var(--ink);
+  }
+
+  .hero-full__lede {
+    color: var(--ink-soft);
+  }
+
+  .hero-full__scroll-cue {
+    display: none;
   }
 }
 
