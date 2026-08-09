@@ -239,7 +239,7 @@
 
 .narrative-section__fill-ring {
   width: clamp(14rem, 22vw, 19rem);
-  opacity: 0.16;
+  opacity: 0.22;
 }
 
 .narrative-fill-ring {
@@ -298,18 +298,6 @@
 .kw--lit.kw--secondary {
   color: var(--ink-strong);
   font-weight: 600;
-}
-
-.narrative-ring-wrap {
-  width: clamp(4.5rem, 12vw, 6rem);
-  margin: var(--space-1) 0;
-}
-
-.narrative-ring {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
 }
 
 .narrative-close {
@@ -374,7 +362,7 @@
 
   .narrative-section__fill-ring {
     width: 9rem;
-    opacity: 0.12;
+    opacity: 0.18;
   }
 }
 

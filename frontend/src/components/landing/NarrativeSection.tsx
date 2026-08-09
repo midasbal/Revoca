@@ -11,14 +11,13 @@ import { NarrativeFillRing, type FillRingVariant } from './NarrativeFillRing';
  * view uses for real on-chain values.
  *
  * The side opposite the text is never empty: a large, quiet ring echoes
- * the logo and answers the section's own state (closed, breaking,
+ * the logo and answers the section's own state (whole, breaking,
  * settled), and where a section has a real on-chain detail, it sits
  * quietly beside the ring rather than in the text column.
  */
 export function NarrativeSection({
   align,
   mark,
-  leading,
   narration,
   fact,
   texture,
@@ -26,32 +25,22 @@ export function NarrativeSection({
 }: {
   align: 'left' | 'right';
   mark: string;
-  leading?: ReactNode;
   narration: ReactNode;
   fact: ReactNode;
   texture?: ReactNode;
   ringVariant?: FillRingVariant;
 }) {
   const fillSide = align === 'left' ? 'right' : 'left';
-  const d1 = leading ? 0.1 : 0;
-  const d2 = leading ? 0.22 : 0.08;
-  const d3 = leading ? 0.34 : 0.22;
-  const d4 = leading ? 0.44 : 0.32;
 
   return (
     <section className={`narrative-section narrative-section--${align}`}>
       <div className="narrative-section__grid">
         <div className="narrative-section__inner">
           <Reveal className="narrative-section__mark eyebrow">{mark}</Reveal>
-          {leading && (
-            <Reveal className="narrative-ring-wrap" delay={d1}>
-              {leading}
-            </Reveal>
-          )}
-          <Reveal className="narrative-section__narration" delay={d2}>
+          <Reveal className="narrative-section__narration" delay={0.08}>
             {narration}
           </Reveal>
-          <Reveal className="narrative-section__fact" delay={d3}>
+          <Reveal className="narrative-section__fact" delay={0.22}>
             {fact}
           </Reveal>
         </div>
@@ -60,7 +49,7 @@ export function NarrativeSection({
             <NarrativeFillRing variant={ringVariant} />
           </div>
           {texture && (
-            <Reveal className="narrative-section__texture mono" delay={d4}>
+            <Reveal className="narrative-section__texture mono" delay={0.32}>
               {texture}
             </Reveal>
           )}

@@ -2,7 +2,6 @@ import { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Hero } from '../components/landing/Hero';
 import { NarrativeSection } from '../components/landing/NarrativeSection';
-import { NarrativeRingBreak } from '../components/landing/NarrativeRingBreak';
 import { ScrollProgress } from '../components/landing/ScrollProgress';
 import { Reveal } from '../components/landing/Reveal';
 import { Keyword } from '../components/landing/Keyword';
@@ -90,7 +89,6 @@ export default function LandingPage() {
           align="left"
           mark="V. The break"
           ringVariant="breaking"
-          leading={<NarrativeRingBreak />}
           narration={
             <>
               And when a standing lapses, whether it is <Keyword>frozen</Keyword>, <Keyword>expired</Keyword>, or
