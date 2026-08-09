@@ -2,11 +2,15 @@ import type { Address } from 'viem';
 import { AmountAction } from '../borrower/AmountAction';
 import { PoolContextRail } from '../borrower/PoolContextRail';
 import { LenderNoteRail } from './LenderNoteRail';
+import { Button } from '../ui/Button';
 import { useLenderActions } from '../../hooks/useLenderActions';
 import type { LenderSnapshot } from '../../hooks/useLenderPosition';
 import { formatAmount, formatBps, shortAddress } from '../../chain';
 
 const SECONDS_PER_YEAR = 31_536_000n;
+
+/** Matches RTUSD_FUND_AMOUNT, the same amount real borrower onboarding mints (backend/src/onboarding/provision.ts), so either path leaves a wallet with a comparable, meaningful test balance. */
+const FAUCET_AMOUNT = 2_000n * 10n ** 18n;
 
 /**
  * The real lender surface: live pool liquidity and utilization, this
@@ -85,6 +89,21 @@ export function LenderSurface({ address, lender }: { address: Address; lender: L
           <p className="notice" style={{ marginTop: '0.5rem' }}>
             <span className="mono">{formatAmount(lender.assetBalance)}</span> rtUSD available to deposit
           </p>
+
+          <div className="action">
+            <Button
+              variant="ghost"
+              disabled={actions.pending !== null}
+              onClick={() => void actions.mintTestAsset(address, FAUCET_AMOUNT)}
+            >
+              {actions.pending === 'mint' ? 'Minting…' : `Get ${formatAmount(FAUCET_AMOUNT)} test rtUSD`}
+            </Button>
+            <p className="action__status">
+              A real on-chain mint, straight to your wallet, no backend involved. rtUSD is a testnet token whose mint is
+              intentionally open, never a stand-in for real value.
+            </p>
+            {actions.pending === null && actions.error && <p className="action__status action__status--error">{actions.error}</p>}
+          </div>
 
           <div className="ruled">
             <span className="eyebrow ruled__label">Deposit</span>

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useWriteContract } from 'wagmi';
-import type { Hex } from 'viem';
+import type { Address, Hex } from 'viem';
 import { ASSET_ABI, DEPLOYMENT, POOL_ABI, publicClient } from '../chain';
 
-export type LenderActionKind = 'approve' | 'deposit' | 'withdraw';
+export type LenderActionKind = 'approve' | 'deposit' | 'withdraw' | 'mint';
 
 /** Real lender writes, wagmi/viem directly against the deployed LendingPool, gas left to wagmi's own estimation (see useBorrowerActions.ts's header on why a hardcoded limit is unsafe on Monad). */
 export function useLenderActions() {
@@ -36,6 +36,9 @@ export function useLenderActions() {
       ),
     deposit: (amount: bigint) => run('deposit', () => writeContractAsync({ address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'deposit', args: [amount] })),
     withdraw: (amount: bigint) => run('withdraw', () => writeContractAsync({ address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'withdraw', args: [amount] })),
+    // rtUSD's own mint, unrestricted by design (see chain.ts's ASSET_ABI), a real on-chain testnet faucet, no backend involved.
+    mintTestAsset: (to: Address, amount: bigint) =>
+      run('mint', () => writeContractAsync({ address: DEPLOYMENT.asset, abi: ASSET_ABI, functionName: 'mint', args: [to, amount] })),
   };
 }
 

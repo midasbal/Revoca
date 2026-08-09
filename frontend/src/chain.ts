@@ -70,6 +70,10 @@ export const ASSET_ABI = parseAbi([
   'function allowance(address owner, address spender) external view returns (uint256)',
   'function approve(address spender, uint256 value) external returns (bool)',
   'function symbol() external view returns (string)',
+  // rtUSD is a MockERC20 (contracts/src/test/MockERC20.sol), its mint is
+  // deliberately unrestricted, real on-chain test tokens, no backend or
+  // privileged key needed to get some, see LenderNoteRail's faucet action.
+  'function mint(address to, uint256 amount) external',
 ]);
 
 /** CompliancePolicy's ratio-band table, the real tier-as-risk data the borrower surface shows, never a hardcoded copy. */

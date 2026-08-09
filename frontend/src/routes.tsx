@@ -6,6 +6,7 @@ import PositionsPage from './pages/PositionsPage';
 import RecordPage from './pages/RecordPage';
 import PoolPage from './pages/PoolPage';
 import DocsPage from './pages/DocsPage';
+import RoadmapPage from './pages/RoadmapPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export const router = createBrowserRouter([
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: '/positions/:address', element: <RecordPage /> },
       { path: '/pool', element: <PoolPage /> },
       { path: '/docs', element: <DocsPage /> },
+      { path: '/roadmap', element: <RoadmapPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

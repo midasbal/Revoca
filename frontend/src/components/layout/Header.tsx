@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { to: '/positions', label: 'Positions' },
   { to: '/pool', label: 'Pool' },
   { to: '/docs', label: 'Docs' },
+  { to: '/roadmap', label: 'Roadmap' },
 ];
 
 /**

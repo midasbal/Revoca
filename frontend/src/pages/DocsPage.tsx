@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ArchitectureDiagram } from '../components/docs/ArchitectureDiagram';
 import { CopyableAddress } from '../components/CopyableAddress';
 import { DEPLOYMENT } from '../chain';
@@ -43,6 +44,16 @@ const AUDIT_EVENTS = [
  */
 export default function DocsPage() {
   const activeId = useActiveSection(SECTION_IDS);
+
+  // A direct link to /docs#section (the footer's Contracts link, anyone's
+  // bookmark) arrives before React has rendered the sections, so the
+  // browser's own one-time scroll-to-fragment fires against an empty page
+  // and never retries. Do it ourselves once the real content exists.
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    document.getElementById(hash)?.scrollIntoView();
+  }, []);
 
   return (
     <div className="page-wrap docs">
