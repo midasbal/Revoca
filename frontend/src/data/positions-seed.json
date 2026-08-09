@@ -1,10 +1,11 @@
 {
   "pool": "0x43446f24a860c9c13d138483275b879e16d614dd",
   "scannedFrom": "51825783",
-  "scannedTo": "52115983",
-  "generatedAt": "2026-08-09T02:36:04.196Z",
+  "scannedTo": "52349638",
+  "generatedAt": "2026-08-09T22:37:21.679Z",
   "addresses": [
     "0xd4d9f9787557df143e962f1a42b2ada38687355a",
-    "0xb007ead5d365cc7886321d66039cca99b7c50e32"
+    "0xb007ead5d365cc7886321d66039cca99b7c50e32",
+    "0xe78baa9fad05bdadbfd9a42eca38bb908db79705"
   ]
 }
