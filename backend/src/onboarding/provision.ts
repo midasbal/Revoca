@@ -14,7 +14,7 @@
  * whole provisioning fails loudly rather than returning a partial, faked
  * success.
  */
-import { createPublicClient, createWalletClient, http, parseAbi, parseUnits, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, parseAbi, type Address, type Hex } from "viem";
 import { monadTestnet } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 

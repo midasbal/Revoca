@@ -1,25 +1,94 @@
 import { Link } from 'react-router-dom';
-import { Card } from '../components/ui/Card';
-import { DEMO_BORROWER } from '../deployment';
-import { shortAddress } from '../chain';
+import { useReducedMotion } from 'framer-motion';
+import { RingMark } from '../components/RingMark';
+import { usePositionsRegistry } from '../hooks/usePositionsRegistry';
+import { positionStatus } from '../positionStatus';
+import { formatAmount, formatBps, shortAddress } from '../chain';
 
 /**
- * The full registry listing (every open position, filterable by
- * standing) lands next. For now, a real link to the one live record this
- * environment actually has, not a fabricated table of rows.
+ * The system-wide view: every real open position in the pool, live
+ * standing, not one record. Addresses are discovered from real on-chain
+ * history (see usePositionsRegistry.ts's header on why that discovery is
+ * itself a progressive scan, not instant, on Monad's public RPC), so the
+ * registry can genuinely still be filling in while it's on screen, shown
+ * honestly rather than hidden.
  */
 export default function PositionsPage() {
+  const prefersReduced = useReducedMotion();
+  const registry = usePositionsRegistry();
+
+  const valid = registry.entries.filter((e) => positionStatus(e).phase === 'valid').length;
+  const struck = registry.entries.length - valid;
+
   return (
     <div className="page-wrap">
-      <Card className="placeholder">
+      <div className="registry-head">
         <p className="eyebrow">Positions</p>
-        <h1 className="placeholder__title">The registry, position by position</h1>
-        <p className="placeholder__lede">A filterable listing of every open position lands here next. One live record exists in this environment today.</p>
-        <Link to={`/positions/${DEMO_BORROWER}`} className="positions-row">
-          <span className="positions-row__label mono">{shortAddress(DEMO_BORROWER)}</span>
-          <span className="positions-row__meta">Tier 50 / subtier 80 · open record</span>
-        </Link>
-      </Card>
+        <h1 className="registry-head__title">The registry, position by position</h1>
+        <p className="registry-head__lede">
+          Every open position in the pool, standing read live against the same compliance gate and registry every
+          borrow actually checks, not a cached list.
+        </p>
+      </div>
+
+      <div className="registry-status">
+        <span className="registry-status__count mono">
+          {registry.entries.length} open &middot; {valid} valid &middot; {struck} struck or in grace
+        </span>
+        {registry.discovering && (
+          <span className="registry-status__scanning mono">
+            Scanning chain history for more&hellip; block {registry.scannedBlock.toLocaleString('en-US')} of{' '}
+            {registry.targetBlock.toLocaleString('en-US')} ({registry.addressesDiscovered} addresses seen)
+          </span>
+        )}
+      </div>
+
+      {registry.loadingEntries && registry.entries.length === 0 ? (
+        <p className="notice" style={{ marginTop: 'var(--space-5)' }}>
+          Reading live positions&hellip;
+        </p>
+      ) : registry.entries.length === 0 ? (
+        <p className="notice" style={{ marginTop: 'var(--space-5)' }}>
+          {registry.discovering
+            ? 'No open positions found yet, still scanning the chain for the pool’s real history.'
+            : 'No open positions in the pool right now. This is a real, honest empty registry, not a placeholder.'}
+        </p>
+      ) : (
+        <ol className="registry-list">
+          {registry.entries.map((entry) => {
+            const status = positionStatus(entry);
+            return (
+              <li key={entry.address}>
+                <Link to={`/positions/${entry.address}`} className="registry-row">
+                  <span className="registry-row__ring" aria-hidden="true">
+                    <RingMark phase={status.phase} prefersReduced={prefersReduced} onStrikeComplete={() => {}} />
+                  </span>
+                  <span className="registry-row__body">
+                    <span className="registry-row__address mono">{shortAddress(entry.address)}</span>
+                    <span className="registry-row__meta">
+                      {status.label} &middot; {status.detail}
+                    </span>
+                  </span>
+                  <span className="registry-row__stats">
+                    <span className="registry-row__stat">
+                      <span className="registry-row__stat-label">Ratio</span>
+                      <span className="registry-row__stat-value mono">{formatBps(entry.ratioBps)}</span>
+                    </span>
+                    <span className="registry-row__stat">
+                      <span className="registry-row__stat-label">Collateral</span>
+                      <span className="registry-row__stat-value mono">{formatAmount(entry.collateral)}</span>
+                    </span>
+                    <span className="registry-row__stat">
+                      <span className="registry-row__stat-label">Debt</span>
+                      <span className="registry-row__stat-value mono">{formatAmount(entry.debt)}</span>
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 }
