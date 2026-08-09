@@ -1383,6 +1383,86 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
+/* Borrower layout: the same console proportions as the record view, the */
+/* pool this borrower draws against on the left, this position's real    */
+/* standing/unwind status on the right, real content filling the         */
+/* margins a single centered card would otherwise leave empty.           */
+/* -------------------------------------------------------------------- */
+
+.borrower-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 13rem) minmax(0, 44rem) minmax(0, 13rem);
+  justify-content: center;
+  align-items: start;
+  gap: clamp(1.5rem, 3vw, 3rem);
+}
+
+.borrower-layout__content {
+  min-width: 0;
+}
+
+.rail--standing-active .rail__label {
+  color: var(--struck);
+}
+
+.rail--standing-active .rail__prose {
+  color: var(--ink-soft);
+}
+
+.rail-link {
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-strong);
+  padding-bottom: 2px;
+  align-self: flex-start;
+  transition:
+    color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident);
+}
+
+.rail-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+@media (max-width: 64rem) {
+  .borrower-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked, the borrower's own card and actions should read first, the
+     ambient pool context and the standing note follow, not precede it. */
+  .borrower-layout__content {
+    order: 1;
+  }
+
+  .rail--pool {
+    order: 2;
+  }
+
+  .rail--standing {
+    order: 3;
+  }
+
+  /* Full width once stacked, so these read as normal blocks, not the
+     console rails' inline-chip layout tuned for a narrow flanking column. */
+  .rail--pool,
+  .rail--standing {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+
+  .rail--pool .rail__prose,
+  .rail--standing .rail__prose {
+    display: block;
+    max-width: none;
+  }
+}
+
+/* -------------------------------------------------------------------- */
 /* Onboarding: the moment a standing is granted. An open composition on  */
 /* the app's own ground, the ring anchoring one side, the copy and real  */
 /* levels on the other, in deliberate relation, not a card in a void.    */

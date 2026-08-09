@@ -6,7 +6,6 @@ import { ConnectButton } from '../../wallet/ConnectButton';
 import { useBlockHeight } from '../../hooks/useBlockHeight';
 
 const NAV_LINKS = [
-  { to: '/app', label: 'App' },
   { to: '/lend', label: 'Lend' },
   { to: '/positions', label: 'Positions' },
   { to: '/pool', label: 'Pool' },

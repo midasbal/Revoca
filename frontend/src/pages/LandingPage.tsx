@@ -6,7 +6,6 @@ import { ScrollProgress } from '../components/landing/ScrollProgress';
 import { Reveal } from '../components/landing/Reveal';
 import { Keyword } from '../components/landing/Keyword';
 import { Button } from '../components/ui/Button';
-import { DEMO_BORROWER } from '../deployment';
 import { shortAddress } from '../chain';
 
 /** Cleanverse's on-chain compliance validator on Monad testnet, read live behind Revoca's compliance gate, see docs/ARCHITECTURE.md. */
@@ -134,11 +133,8 @@ export default function LandingPage() {
               Standing, <Keyword>honored</Keyword> while it holds. Settled, the moment it <Keyword>breaks</Keyword>.
             </p>
             <div className="narrative-close__actions">
-              <Link to="/app">
-                <Button>Enter the app</Button>
-              </Link>
-              <Link to={`/positions/${DEMO_BORROWER}`}>
-                <Button variant="ghost">View a live record</Button>
+              <Link to="/lend">
+                <Button>Connect your wallet, enter Revoca</Button>
               </Link>
             </div>
             <p className="narrative-close__footnote mono">Live on Monad testnet.</p>
