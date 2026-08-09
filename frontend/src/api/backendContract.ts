@@ -1,34 +1,64 @@
 /**
- * The backend contract: every endpoint the app will call for an action
- * that needs a secret (Cleanverse API key, attestor key, deployer key),
- * something a browser must never hold. Typed here so the frontend can be
- * built against a stable shape before the backend exists. NOT implemented
- * or deployed this session, see docs/BACKEND_CONTRACT.md for the
- * deployment intent (serverless functions, cloud-held secrets, never a
- * server anyone runs locally).
+ * The backend contract: every endpoint the app calls for an action that
+ * needs a secret (Cleanverse API key, attestor key, deployer key),
+ * something a browser must never hold. Deployed as small, stateless,
+ * serverless functions, see backend/api/ and backend/DEPLOY.md, never a
+ * process anyone runs locally (see docs/ARCHITECTURE.md's frontend/
+ * backend split).
  *
- * Every request carries the borrower/record address explicitly rather
- * than relying on server-side session state, these are single-purpose
- * calls a cloud function can serve statelessly.
+ * Every request carries the address it acts on explicitly rather than
+ * relying on server-side session state, these are single-purpose calls a
+ * cloud function can serve statelessly.
  */
 import type { Address } from 'viem';
 
+/**
+ * The subTier levels this app actually offers during onboarding, each a
+ * real CompliancePolicy ratio band, not the full 1-99 range Cleanverse's
+ * API allows, see backend/src/onboarding/provision.ts's identical const
+ * (kept in sync manually, the two packages have no shared build step).
+ */
+export const ONBOARDING_SUBTIERS = ['0', '20', '50', '80'] as const;
+export type OnboardingSubTier = (typeof ONBOARDING_SUBTIERS)[number];
+
 export interface ProvisionRequest {
   address: Address;
-  tier: number;
-  subTier: number;
+  subTier: OnboardingSubTier;
 }
+
+/**
+ * Synchronous: the backend does not respond until the whole real sequence
+ * (generate_apass, query_apass verify, on-chain attestation, gas + rtUSD
+ * funding) has actually completed, no "started, poll elsewhere" stub.
+ */
 export interface ProvisionResponse {
-  status: 'started';
+  address: Address;
+  customerId: string;
+  cvRecordId: string;
+  requestedSubTier: OnboardingSubTier;
+  verified: {
+    tier: string;
+    subTier: number;
+    status: 1 | 2 | null;
+    expirationTime: number | null;
+  };
+  attestationTxHash: `0x${string}`;
+  fundedGas: boolean;
+  gasTxHash: `0x${string}` | null;
+  mintTxHash: `0x${string}`;
 }
 
 export interface FundRequest {
   address: Address;
   /** Raw 18-decimal amount, as a decimal string, never a JS number (precision). */
-  amount: string;
+  amount?: string;
 }
 export interface FundResponse {
-  status: 'started';
+  address: Address;
+  fundedGas: boolean;
+  gasTxHash: `0x${string}` | null;
+  mintTxHash: `0x${string}`;
+  amount: string;
 }
 
 export interface StrikeRequest {
@@ -46,7 +76,8 @@ export interface AdvanceUnwindResponse {
 }
 
 export interface ActionErrorResponse {
-  error: string | null;
+  error: string;
+  step?: string;
 }
 
 /** Route shapes, not URLs, the deployed base URL is app configuration (VITE_BACKEND_URL), not part of the contract. */

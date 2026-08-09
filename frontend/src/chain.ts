@@ -26,6 +26,11 @@ export const POOL_ABI = parseAbi([
   'function positions(address) external view returns (uint256 collateral, uint256 principal, uint256 accruedInterest, uint256 lastAccrualTimestamp)',
   'function currentDebt(address) external view returns (uint256)',
   'function currentRatioBps(address) external view returns (uint16)',
+  'function isHealthy(address) external view returns (bool)',
+  'function postCollateral(uint256 amount) external',
+  'function borrow(uint256 amount) external',
+  'function repay(uint256 amount) external',
+  'function withdrawCollateral(uint256 amount) external',
   'event CollateralPosted(address indexed borrower, uint256 amount, uint256 newCollateralBalance)',
   'event Borrow(address indexed borrower, uint256 amount, uint256 newPrincipal, uint256 newDebt, uint16 tier, uint16 subTier, uint16 ratioBps)',
   'event Repay(address indexed borrower, uint256 amount, uint256 principalPaid, uint256 interestPaid, uint256 remainingDebt)',
@@ -38,6 +43,25 @@ export const REGISTRY_ABI = parseAbi([
   'function isCompliant(address user) external view returns (bool)',
   'function isFresh(address user) external view returns (bool)',
   'function tierOf(address user) external view returns (uint16 tier, uint16 subTier)',
+]);
+
+/** The pool's actual gate, HybridComplianceGate on the current deployment, this is what `borrow()` really checks, not ComplianceRegistry directly (see docs/ARCHITECTURE.md's hybrid design). */
+export const GATE_ABI = parseAbi([
+  'function isCompliant(address user) external view returns (bool)',
+  'function isFresh(address user) external view returns (bool)',
+]);
+
+export const ASSET_ABI = parseAbi([
+  'function balanceOf(address) external view returns (uint256)',
+  'function allowance(address owner, address spender) external view returns (uint256)',
+  'function approve(address spender, uint256 value) external returns (bool)',
+  'function symbol() external view returns (string)',
+]);
+
+/** CompliancePolicy's ratio-band table, the real tier-as-risk data the borrower surface shows, never a hardcoded copy. */
+export const POLICY_ABI = parseAbi([
+  'function ratioBandCount() external view returns (uint256)',
+  'function ratioBandAt(uint256 index) external view returns (uint16 minTier, uint16 minSubTier, uint16 ratioBps)',
 ]);
 
 export const GUARDIAN_ABI = parseAbi([
