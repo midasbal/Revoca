@@ -25,7 +25,6 @@ export default function LandingPage() {
         <NarrativeSection
           align="left"
           mark="I. The old idea"
-          ringVariant="intact"
           narration={
             <>
               For as long as trust has been written down, it has carried a seal. And a seal could always be{' '}
@@ -40,7 +39,6 @@ export default function LandingPage() {
         <NarrativeSection
           align="right"
           mark="II. What a standing is"
-          ringVariant="intact"
           narration={
             <>
               A standing here is a verified identity, issued off chain, carried on chain, and <Keyword>revocable</Keyword>{' '}
@@ -54,7 +52,6 @@ export default function LandingPage() {
         <NarrativeSection
           align="left"
           mark="III. Standing sets the terms"
-          ringVariant="intact"
           narration={
             <>
               Not every <Keyword>standing</Keyword> carries the same weight. Revoca reads the verified tier of each
@@ -73,7 +70,6 @@ export default function LandingPage() {
         <NarrativeSection
           align="right"
           mark="IV. The watch"
-          ringVariant="intact"
           narration={
             <>
               From the moment a loan opens, the <Keyword>standing</Keyword> behind it is watched. Not reviewed by
@@ -88,7 +84,6 @@ export default function LandingPage() {
         <NarrativeSection
           align="left"
           mark="V. The break"
-          ringVariant="breaking"
           narration={
             <>
               And when a standing lapses, whether it is <Keyword>frozen</Keyword>, <Keyword>expired</Keyword>, or
@@ -103,7 +98,6 @@ export default function LandingPage() {
         <NarrativeSection
           align="right"
           mark="VI. Settlement, not seizure"
-          ringVariant="settled"
           narration={
             <>
               Nothing is taken in haste. The position is unwound in order. The borrower&rsquo;s own collateral
@@ -124,7 +118,6 @@ export default function LandingPage() {
         <NarrativeSection
           align="left"
           mark="VII. The record"
-          ringVariant="settled"
           narration={
             <>
               Every step is written where it cannot be quietly revised. The standing, the lapse, the grace, the

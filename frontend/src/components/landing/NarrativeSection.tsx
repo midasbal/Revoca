@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Reveal } from './Reveal';
-import { NarrativeFillRing, type FillRingVariant } from './NarrativeFillRing';
 
 /**
  * One idea, one section. `align` alternates which side the content
@@ -10,10 +9,12 @@ import { NarrativeFillRing, type FillRingVariant } from './NarrativeFillRing';
  * the fact beneath is smaller and precise, the same register the record
  * view uses for real on-chain values.
  *
- * The side opposite the text is never empty: a large, quiet ring echoes
- * the logo and answers the section's own state (whole, breaking,
- * settled), and where a section has a real on-chain detail, it sits
- * quietly beside the ring rather than in the text column.
+ * The side opposite the text stays open. Where a section has a real
+ * on-chain detail, that detail anchors the space, quiet and precise.
+ * Where it doesn't, the space is left as confident whitespace, with
+ * only the section's own numeral set very faint, never a drawn shape.
+ * The ring lives once, in the header and the hero photograph, not
+ * repeated as a vector down the page.
  */
 export function NarrativeSection({
   align,
@@ -21,16 +22,15 @@ export function NarrativeSection({
   narration,
   fact,
   texture,
-  ringVariant = 'intact',
 }: {
   align: 'left' | 'right';
   mark: string;
   narration: ReactNode;
   fact: ReactNode;
   texture?: ReactNode;
-  ringVariant?: FillRingVariant;
 }) {
   const fillSide = align === 'left' ? 'right' : 'left';
+  const numeral = mark.split('.')[0];
 
   return (
     <section className={`narrative-section narrative-section--${align}`}>
@@ -45,13 +45,14 @@ export function NarrativeSection({
           </Reveal>
         </div>
         <div className={`narrative-section__fill narrative-section__fill--${fillSide}`}>
-          <div className="narrative-section__fill-ring" aria-hidden="true">
-            <NarrativeFillRing variant={ringVariant} />
-          </div>
-          {texture && (
-            <Reveal className="narrative-section__texture mono" delay={0.32}>
+          {texture ? (
+            <Reveal className="narrative-section__texture mono" delay={0.28}>
               {texture}
             </Reveal>
+          ) : (
+            <div className="narrative-section__numeral" aria-hidden="true">
+              {numeral}
+            </div>
           )}
         </div>
       </div>

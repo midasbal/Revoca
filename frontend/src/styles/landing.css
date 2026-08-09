@@ -224,12 +224,10 @@
 .narrative-section__fill {
   position: relative;
   grid-column: 2;
-  height: clamp(16rem, 26vw, 22rem);
+  height: clamp(14rem, 22vw, 18rem);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-4);
 }
 
 .narrative-section--right .narrative-section__fill {
@@ -237,19 +235,18 @@
   grid-row: 1;
 }
 
-.narrative-section__fill-ring {
-  width: clamp(14rem, 22vw, 19rem);
-  opacity: 0.22;
-}
-
-.narrative-fill-ring {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
+.narrative-section__numeral {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(6rem, 11vw, 8.5rem);
+  line-height: 1;
+  color: var(--ink);
+  opacity: 0.05;
+  user-select: none;
 }
 
 .narrative-section__fill .narrative-section__texture {
+  max-width: 19rem;
   text-align: center;
 }
 
@@ -278,8 +275,12 @@
 
 .narrative-section__texture {
   margin: 0;
-  font-size: var(--text-xs);
-  color: var(--ink-faint);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
 }
 
 /* Amber marks exactly the words that carry the theme of standing and its
@@ -357,12 +358,12 @@
     grid-column: 1;
     grid-row: 2;
     height: auto;
+    justify-content: flex-start;
     padding-top: var(--space-6);
   }
 
-  .narrative-section__fill-ring {
-    width: 9rem;
-    opacity: 0.18;
+  .narrative-section__numeral {
+    display: none;
   }
 }
 
