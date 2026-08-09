@@ -60,9 +60,7 @@ export default function LendPage() {
       ) : standing.data.hasStanding ? (
         <BorrowerSurface address={address} standing={standing.data} bandsState={bandsState} />
       ) : (
-        <div className="borrower-card">
-          <OnboardingCard address={address} bandsState={bandsState} />
-        </div>
+        <OnboardingCard address={address} bandsState={bandsState} />
       )}
     </div>
   );

@@ -666,6 +666,11 @@ button {
   color: var(--struck);
 }
 
+.action__status--stage {
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+
 .action__countdown {
   font-family: var(--font-mono);
   color: var(--grace);
@@ -1151,14 +1156,83 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
-/* Onboarding                                                            */
+/* Onboarding: the moment a standing is granted. An open composition on  */
+/* the app's own ground, the ring anchoring one side, the copy and real  */
+/* levels on the other, in deliberate relation, not a card in a void.    */
 /* -------------------------------------------------------------------- */
+
+.onboarding-layout {
+  display: grid;
+  grid-template-columns: minmax(13rem, 20rem) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(2.5rem, 6vw, 5rem);
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+@media (max-width: 56rem) {
+  .onboarding-layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+    text-align: center;
+  }
+}
+
+.onboarding-ring-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.onboarding-ring-panel .form-ring {
+  width: clamp(11rem, 18vw, 17rem);
+}
+
+.onboarding-ring-panel__step {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+@media (max-width: 56rem) {
+  .onboarding-ring-panel {
+    order: -1;
+  }
+
+  .onboarding-ring-panel .form-ring {
+    width: 8rem;
+  }
+}
+
+.onboarding-content {
+  min-width: 0;
+}
+
+@media (max-width: 56rem) {
+  .onboarding-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .onboarding-content .action {
+    align-items: center;
+  }
+
+  .onboarding-content .onboarding__lede {
+    max-width: 30rem;
+  }
+}
 
 .onboarding__title {
   margin: var(--space-2) 0 0;
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-size: var(--text-display-md);
+  line-height: var(--text-display-md-lh);
   letter-spacing: -0.01em;
   color: var(--ink);
 }
@@ -1239,11 +1313,16 @@ button {
   transition:
     border-color var(--duration-fast) var(--ease-confident),
     background-color var(--duration-fast) var(--ease-confident),
-    color var(--duration-fast) var(--ease-confident);
+    color var(--duration-fast) var(--ease-confident),
+    transform var(--duration-fast) var(--ease-confident);
 }
 
 .segmented__option:hover:not(:disabled) {
   border-color: var(--ink-soft);
+}
+
+.segmented__option:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .segmented__option:disabled {
@@ -1251,10 +1330,24 @@ button {
   cursor: default;
 }
 
+/* Amber marks the one meaningful selection here, the same disciplined
+   signal the landing's keywords and the record's struck state use, never
+   decoration. The label stays ink, only the border and the real number
+   carry the color, so it reads as "this is the chosen real fact." */
 .segmented__option--active {
-  border-color: var(--ink);
-  background: var(--paper-recessed);
+  border-color: var(--struck);
+  background: var(--struck-wash);
   color: var(--ink);
+}
+
+.segmented__option--active .segmented__ratio {
+  color: var(--struck);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmented__option:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 .segmented__label {
@@ -1265,6 +1358,7 @@ button {
 .segmented__ratio {
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+  transition: color var(--duration-fast) var(--ease-confident);
 }
 
 /* -------------------------------------------------------------------- */
@@ -1287,6 +1381,9 @@ button {
   border-radius: var(--radius-chip);
   font-size: var(--text-sm);
   color: var(--ink-soft);
+  transition:
+    background-color var(--duration-fast) var(--ease-confident),
+    color var(--duration-fast) var(--ease-confident);
 }
 
 .band-table__row--active {
