@@ -22,11 +22,23 @@ import { loadConfig } from "../cleanverse/config.js";
 import { CleanverseClient } from "../cleanverse/client.js";
 import { CleanverseApiError } from "../cleanverse/errors.js";
 import type { GenerateApassParams, QueryApassData } from "../cleanverse/types.js";
-import { attest, cleanverseFactSource } from "../attestor/attest.js";
+import { attest } from "../attestor/attest.js";
+import type { ApassFactSource } from "../attestor/types.js";
 import { createAttestationRelay } from "../attestor/relay.js";
 import { attestorAccountFromConfig, loadAttestorConfig } from "../attestor/config.js";
 import { buildDomain } from "../attestor/types.js";
 import { DEPLOYMENT, CHAIN_ID } from "./deployment.js";
+
+/** Wraps the query_apass result this function already fetched (step 2) as the attestor's fact source, instead of `cleanverseFactSource`'s own fresh query_apass call, real data either way, just without a redundant Cleanverse round trip inside the same request. */
+function verifiedFactSource(data: QueryApassData): ApassFactSource {
+  return async () => ({
+    status: data.status,
+    expirationTime: data.expirationTime,
+    tier: data.tier,
+    subTier: data.subTier,
+    countries: data.countries,
+  });
+}
 
 const ASSET_ABI = parseAbi([
   "function mint(address to, uint256 amount) external",
@@ -132,7 +144,7 @@ export async function provisionBorrower(address: Address, requestedSubTier: Onbo
   const publicClient = createPublicClient({ chain: monadTestnet, transport: http(rpcUrl) });
   const relay = createAttestationRelay({ rpcUrl, chain: monadTestnet, registryAddress });
   const domain = buildDomain(CHAIN_ID, registryAddress);
-  const factSource = cleanverseFactSource(client, "monad");
+  const factSource = verifiedFactSource(verified);
 
   let attestationTxHash: Hex;
   try {
@@ -155,20 +167,27 @@ export async function provisionBorrower(address: Address, requestedSubTier: Onbo
   const maxFeePerGas = fees.maxFeePerGas * 2n;
   const maxPriorityFeePerGas = fees.maxPriorityFeePerGas * 2n;
 
+  const balance = await publicClient.getBalance({ address });
+  const needsGas = balance < GAS_TOP_UP_THRESHOLD;
+
+  // Both transactions are signed and paid for by the deployer, and the
+  // mint doesn't require the recipient to already have gas, so the two
+  // are independent: explicit sequential nonces (one signer) let both
+  // broadcast back to back, then their confirmations are awaited
+  // together instead of one full receipt wait blocking the next send.
+  const nonce = await publicClient.getTransactionCount({ address: deployer.address, blockTag: "pending" });
+
   let gasTxHash: Hex | null = null;
-  let fundedGas = false;
   try {
-    const balance = await publicClient.getBalance({ address });
-    if (balance < GAS_TOP_UP_THRESHOLD) {
+    if (needsGas) {
       gasTxHash = await deployerWallet.sendTransaction({
         to: address,
         value: GAS_TOP_UP_AMOUNT,
         gas: 100_000n,
         maxFeePerGas,
         maxPriorityFeePerGas,
+        nonce,
       });
-      await publicClient.waitForTransactionReceipt({ hash: gasTxHash, timeout: 180_000 });
-      fundedGas = true;
     }
   } catch (err) {
     throw new ProvisionError(describeError(err), "fund-gas");
@@ -184,10 +203,20 @@ export async function provisionBorrower(address: Address, requestedSubTier: Onbo
       gas: 300_000n,
       maxFeePerGas,
       maxPriorityFeePerGas,
+      nonce: needsGas ? nonce + 1 : nonce,
     });
-    await publicClient.waitForTransactionReceipt({ hash: mintTxHash, timeout: 180_000 });
   } catch (err) {
     throw new ProvisionError(describeError(err), "fund-rtusd");
+  }
+
+  let fundedGas = false;
+  try {
+    const waits: Promise<unknown>[] = [publicClient.waitForTransactionReceipt({ hash: mintTxHash, timeout: 180_000 })];
+    if (gasTxHash) waits.push(publicClient.waitForTransactionReceipt({ hash: gasTxHash, timeout: 180_000 }));
+    await Promise.all(waits);
+    fundedGas = gasTxHash !== null;
+  } catch (err) {
+    throw new ProvisionError(describeError(err), "fund-confirm");
   }
 
   return {

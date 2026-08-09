@@ -11,7 +11,8 @@ import { enforceRateLimit, RateLimitExceededError } from "../../src/onboarding/r
 const ADDRESS_LIMIT = { max: 1, windowMs: 2 * 60_000 }; // one fund attempt per address per 2 minutes
 const IP_LIMIT = { max: 5, windowMs: 10 * 60_000 }; // five fund attempts per caller IP per 10 minutes
 
-export const config = { maxDuration: 30 };
+/** See provision.ts's identical config comment: vercel.json is the enforced source, kept in sync here. */
+export const config = { maxDuration: 10 };
 
 interface FundRequestBody {
   address?: string;

@@ -6,30 +6,57 @@ docs/ARCHITECTURE.md's frontend/backend split, the standing constraint
 this repo works under. Deploy it once, point the frontend at the deployed
 URL, done.
 
-## What's live today (session 1: borrower + onboarding)
+## What's live today
 
 - `POST /api/onboarding/provision`, real: generates a real Cleanverse
   A-Pass for a connected address, verifies it took, signs and submits a
   real on-chain compliance attestation, funds real testnet gas + rtUSD.
-  Synchronous, responds once the whole sequence actually completes
-  (measured ~6-10s end to end against the real sandbox + real Monad
-  testnet in this session's own testing).
+  Synchronous, responds once the whole sequence actually completes.
+  Measured ~5.2-5.9s end to end against the real sandbox + real Monad
+  testnet for a brand-new address (the slowest real case, a re-provision
+  of an already-provisioned address is faster since it skips
+  `generate_apass`'s creation path); see "Function duration" below.
+  Rate-limited: 1 attempt per address per 5 minutes, 5 per caller IP per
+  10 minutes, see `src/onboarding/rateLimit.ts`.
 - `POST /api/onboarding/fund`, real: tops up gas + rtUSD for an address
-  that already has standing.
+  that already has standing. The requested `amount` is capped at 2,000
+  rtUSD server-side regardless of what a caller asks for, this is a
+  public, unauthenticated endpoint, the amount is untrusted input, not
+  passed straight into `mint`. Rate-limited: 1 attempt per address per 2
+  minutes, 5 per caller IP per 10 minutes.
+- `POST /api/onboarding/fund-gas`, real: tops up testnet gas only (no
+  rtUSD mint), for any connected wallet, not just ones that went through
+  borrower onboarding, drawn from the separate `FAUCET_PRIVATE_KEY`
+  wallet, never the deployer. Rate-limited: 1 attempt per address per 2
+  minutes, 10 per caller IP per 10 minutes.
 - `POST /api/positions/:address/strike`, `POST /api/positions/:address/advance`,
   `GET /api/positions/:address/last-error`: declared in
   `frontend/src/api/backendContract.ts`, not yet implemented as serverless
-  functions this session (the record view's strike/advance demo actions
-  predate this session and are out of this session's scope, borrower +
-  onboarding only, see the session's own framing).
+  functions (near-term roadmap item, see docs/ROADMAP.md).
+
+All three live endpoints are guarded by an in-memory, per-serverless-
+instance rate limiter (`src/onboarding/rateLimit.ts`), deliberately not
+backed by Redis/KV, the goal is "a bored caller can't loop the faucet dry
+during judging," not distributed rate limiting infrastructure. A tripped
+limit returns 429 with an honest retry-time message, never a silent no-op.
 
 ## Deploy to Vercel
 
+This repo deploys as **two separate Vercel projects** from the same
+GitHub repo: one rooted at `frontend/` (a static Vite build), one rooted
+at `backend/` (Node serverless functions only, no build step of its own).
+They have different framework presets and build behavior, a single
+project trying to serve both would need a much more complex `vercel.json`
+for no real benefit, see the frontend/backend split this repo already
+works under.
+
 1. From the Vercel dashboard, "Add New Project", import this repo.
-2. Set **Root Directory** to `backend`. Vercel auto-detects `api/*.ts` as
-   Node serverless functions, no build command needed (there's no
-   frontend to build here, `package.json`'s `build` script is only the
-   typecheck used in CI/local verification, Vercel doesn't need to run it).
+2. Set **Root Directory** to `backend`. **Framework Preset**: "Other"
+   (there is no frontend framework here). Vercel auto-detects `api/*.ts`
+   as Node serverless functions; no Build Command or Output Directory is
+   needed, `backend/vercel.json` (committed) sets each function's
+   `maxDuration`, and Vercel's own zero-config detection handles the
+   rest.
 3. Set these **Environment Variables** (Production, and Preview if you
    want PR previews to work), values from your own `.env`, never commit
    them:
@@ -37,30 +64,52 @@ URL, done.
    - `CLEANVERSE_API_KEY`
    - `CLEANVERSE_SANDBOX_URL` (`https://uatapi.cleanverse.com/api/cooperate`)
    - `MONAD_TESTNET_RPC`
-   - `DEPLOYER_PRIVATE_KEY` (funds gas + mints rtUSD, needs a real MON balance)
+   - `DEPLOYER_PRIVATE_KEY` (funds gas + mints rtUSD for `/provision` and
+     `/fund`, needs a real MON balance)
    - `ATTESTOR_PRIVATE_KEY` (must already be authorized via
      `ComplianceRegistry.setAttestor`, it already is for the current
      deployment, see backend/scripts/testnet-deploy.ts's output)
+   - `FAUCET_PRIVATE_KEY` (funds gas only for `/fund-gas`, a separate,
+     small, replenishable wallet, never the deployer key, see
+     `src/onboarding/faucetConfig.ts`)
    - `COMPLIANCE_REGISTRY_ADDRESS` (optional, defaults to the current
      deployment's registry if unset, see `src/onboarding/deployment.ts`)
 4. Deploy. Vercel gives you a URL like `https://revoca-backend.vercel.app`.
-5. Set `VITE_BACKEND_URL=https://revoca-backend.vercel.app` wherever the
-   frontend is deployed (its own env config, not this package). Onboarding
-   and the record view's actions light up as soon as that's set, nothing
-   else changes.
+5. Set `VITE_BACKEND_URL=https://revoca-backend.vercel.app` on the
+   frontend project (its own env config, not this package). Onboarding
+   and the fund actions light up as soon as that's set, nothing else
+   changes.
 
 ### Function duration
 
-`api/onboarding/provision.ts` exports `config = { maxDuration: 60 }`. The
-real sequence measured well under that (6-10s) in this session's testing,
-but Vercel's Hobby plan caps Node function duration at 10s regardless of
-what a function requests; the 60s ceiling only actually applies on a Pro
-plan or higher. If onboarding times out on Hobby, either upgrade the plan
-or split provisioning into a "start" call plus a poll (the original
+`backend/vercel.json` sets `maxDuration: 10` for all three onboarding
+functions, matching Vercel's Hobby plan hard cap (Hobby enforces 10s
+regardless of what a function requests; a higher value in `vercel.json`
+can fail the deploy outright on Hobby rather than silently clamping, so
+this repo is committed at the safe value). Each handler's own exported
+`config = { maxDuration }` is a harmless legacy annotation kept in sync
+with the same number, `vercel.json` is what Vercel actually enforces for
+a plain Node function outside a framework like Next.js.
+
+`/provision` is the only endpoint with real margin pressure: measured
+~5.2-5.9s end to end against the real sandbox + real Monad testnet for a
+brand-new address (three samples, this session, real infrastructure, no
+mock data), after two latency optimizations (`src/onboarding/provision.ts`
+skips a redundant `query_apass` re-fetch inside the attestation step, and
+broadcasts the gas top-up and rtUSD mint transactions back to back instead
+of waiting for one's confirmation before sending the other). That leaves
+real but not huge headroom under the 10s cap once Vercel's own cold-start
+and network overhead are added. `/fund` and `/fund-gas` are a single
+transaction each and comfortably clear 10s. If `/provision` is ever seen
+timing out in practice, the fix is to move off synchronous
+request/response, e.g. a "start" call plus a poll, the original
 `ProvisionResponse` shape in an earlier version of
 `frontend/src/api/backendContract.ts` sketched exactly that pattern,
 before this session settled on synchronous since it measured comfortably
-fast enough to be worth the simpler UX).
+fast enough to be worth the simpler UX. That is a real behavior change
+(the frontend's onboarding flow currently expects one synchronous
+response), not something to make silently, upgrading to a Pro plan is the
+simpler fix if it comes up.
 
 ## Verifying a deployment
 

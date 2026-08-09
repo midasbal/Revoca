@@ -15,7 +15,8 @@ import { enforceRateLimit, RateLimitExceededError } from "../../src/onboarding/r
 const ADDRESS_LIMIT = { max: 1, windowMs: 5 * 60_000 }; // one provision attempt per address per 5 minutes
 const IP_LIMIT = { max: 5, windowMs: 10 * 60_000 }; // five provision attempts per caller IP per 10 minutes
 
-export const config = { maxDuration: 60 };
+/** The actually-enforced duration is vercel.json's functions config, this export is a harmless legacy annotation (the per-file `config` convention is a Next.js pattern, not something Vercel's generic Node runtime is documented to read). Kept in sync with vercel.json's value, currently 10s, Hobby's hard cap, see backend/DEPLOY.md. */
+export const config = { maxDuration: 10 };
 
 interface ProvisionRequestBody {
   address?: string;

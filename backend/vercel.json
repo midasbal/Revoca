@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/onboarding/provision.ts": { "maxDuration": 10 },
+    "api/onboarding/fund.ts": { "maxDuration": 10 },
+    "api/onboarding/fund-gas.ts": { "maxDuration": 10 }
+  }
+}
+
