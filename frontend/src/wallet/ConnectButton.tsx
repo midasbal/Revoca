@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 import { CHAIN_ID } from '../chain';
 import { AddressTag } from '../components/ui/AddressTag';
@@ -14,8 +16,26 @@ import { LiveDot } from '../components/ui/LiveDot';
 export function ConnectButton() {
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending, error: connectError } = useConnect();
-  const { disconnect } = useDisconnect();
+  const { disconnectAsync } = useDisconnect();
   const { switchChain, isPending: switching } = useSwitchChain();
+  const navigate = useNavigate();
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  // Genuinely disconnects wagmi's own connector state (confirmed cleared:
+  // the store's connections/current, not merely a visual swap), then
+  // leaves whatever page the user was on, borrower/lender/onboarding
+  // views are all address-gated and would otherwise show a stale
+  // authenticated view for the instant before their own effects catch
+  // up. Awaited, so the redirect never races the disconnect itself.
+  async function handleDisconnect() {
+    setDisconnecting(true);
+    try {
+      await disconnectAsync();
+    } finally {
+      setDisconnecting(false);
+    }
+    navigate('/');
+  }
 
   if (!isConnected || !address) {
     const connector = connectors[0];
@@ -46,8 +66,14 @@ export function ConnectButton() {
     <div className="wallet-chip">
       <LiveDot className="wallet-chip__dot" />
       <AddressTag address={address} />
-      <button type="button" className="wallet-chip__disconnect" onClick={() => disconnect()} aria-label="Disconnect wallet">
-        Disconnect
+      <button
+        type="button"
+        className="wallet-chip__disconnect"
+        disabled={disconnecting}
+        onClick={() => void handleDisconnect()}
+        aria-label="Disconnect wallet"
+      >
+        {disconnecting ? 'Disconnecting…' : 'Disconnect'}
       </button>
     </div>
   );
