@@ -6,6 +6,23 @@ export interface BorrowerSnapshot {
   /** What `borrow()` actually checks: the pool's real gate (HybridComplianceGate), not ComplianceRegistry directly, see docs/ARCHITECTURE.md's hybrid design. */
   compliant: boolean;
   fresh: boolean;
+  /**
+   * Whether OUR registry has ever actually attested this address
+   * (`issuedAtOf(address) > 0`), independent of tier/subTier's value,
+   * since tier 0/subTier 0 is itself a real, valid attested state (the
+   * safest CompliancePolicy band), not a stand-in for "never attested".
+   * Needed because the deployed gate is ValidatorGated, where
+   * `gate.isFresh` trivially returns true (Design A has no staleness
+   * concept), so it gives zero signal about whether OUR attestation
+   * transaction (the one that sets tier/subTier) has actually landed.
+   * Onboarding submits generate_apass, then the attestation, then
+   * funding; Cleanverse's own validator can reflect the new A-Pass
+   * (flipping `compliant` true) before our attestation is mined, and
+   * without this check `hasStanding` would go true on the gate alone,
+   * showing a freshly-onboarded wallet as VALID at tier 0/0 for the
+   * beat before the real tier lands.
+   */
+  attested: boolean;
   hasStanding: boolean;
   tier: number;
   subTier: number;
@@ -29,12 +46,13 @@ export type BorrowerStandingState =
 const POLL_INTERVAL_MS = 4000;
 
 async function fetchSnapshot(address: Address): Promise<BorrowerSnapshot> {
-  const [[compliant, fresh, tierOf, position, debt, ratioBps, assetBalance, allowance], nativeBalance, block] = await Promise.all([
+  const [[compliant, fresh, tierOf, issuedAt, position, debt, ratioBps, assetBalance, allowance], nativeBalance, block] = await Promise.all([
     publicClient.multicall({
       contracts: [
         { address: DEPLOYMENT.gate, abi: GATE_ABI, functionName: 'isCompliant', args: [address] },
         { address: DEPLOYMENT.gate, abi: GATE_ABI, functionName: 'isFresh', args: [address] },
         { address: DEPLOYMENT.registry, abi: REGISTRY_ABI, functionName: 'tierOf', args: [address] },
+        { address: DEPLOYMENT.registry, abi: REGISTRY_ABI, functionName: 'issuedAtOf', args: [address] },
         { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'positions', args: [address] },
         { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'currentDebt', args: [address] },
         { address: DEPLOYMENT.pool, abi: POOL_ABI, functionName: 'currentRatioBps', args: [address] },
@@ -47,10 +65,13 @@ async function fetchSnapshot(address: Address): Promise<BorrowerSnapshot> {
     publicClient.getBlock(),
   ]);
 
+  const attested = issuedAt > 0n;
+
   return {
     compliant,
     fresh,
-    hasStanding: compliant && fresh,
+    attested,
+    hasStanding: compliant && fresh && attested,
     tier: tierOf[0],
     subTier: tierOf[1],
     collateral: position[0],

@@ -56,6 +56,7 @@ export const REGISTRY_ABI = parseAbi([
   'function isCompliant(address user) external view returns (bool)',
   'function isFresh(address user) external view returns (bool)',
   'function tierOf(address user) external view returns (uint16 tier, uint16 subTier)',
+  'function issuedAtOf(address user) external view returns (uint256)',
 ]);
 
 /** The pool's actual gate, HybridComplianceGate on the current deployment, this is what `borrow()` really checks, not ComplianceRegistry directly (see docs/ARCHITECTURE.md's hybrid design). */
