@@ -1204,6 +1204,34 @@ button {
   }
 }
 
+/* -------------------------------------------------------------------- */
+/* Gas funding: quiet, transient, point-of-need feedback, never a        */
+/* permanent chrome element.                                             */
+/* -------------------------------------------------------------------- */
+
+.gas-funding-notice {
+  margin: var(--space-5) 0;
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-card);
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.gas-funding-notice__dot {
+  flex: none;
+}
+
+.gas-funding-notice--error {
+  background: var(--struck-wash);
+  border-color: var(--struck);
+  color: var(--ink);
+}
+
 .placeholder {
   max-width: 40rem;
 }
@@ -1599,8 +1627,12 @@ button {
 /* Segmented control, the verification-level picker                     */
 /* -------------------------------------------------------------------- */
 
-.segmented {
+.onboarding__level-label {
   margin-top: var(--space-5);
+}
+
+.segmented {
+  margin-top: var(--space-2);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-2);
@@ -2362,4 +2394,88 @@ button {
   font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--ink-faint);
+}
+
+/* -------------------------------------------------------------------- */
+/* Help tip: quiet, restrained, only where a newcomer would genuinely     */
+/* wonder. Hover and focus reveal it on desktop with no JS, a tap toggles */
+/* the same bubble on mobile, which has no hover.                        */
+/* -------------------------------------------------------------------- */
+
+.help-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4em;
+  vertical-align: middle;
+}
+
+.help-tip__trigger {
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--rule-strong);
+  background: transparent;
+  color: var(--ink-faint);
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: help;
+  transition:
+    color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident);
+}
+
+.help-tip__trigger:hover {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+.help-tip__trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+.help-tip__bubble {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 15rem;
+  padding: var(--space-2) var(--space-3);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-chip);
+  box-shadow: 0 6px 20px rgba(var(--shadow-color), 0.14);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--ink-soft);
+  text-align: left;
+  z-index: var(--z-overlay);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-confident);
+}
+
+.help-tip:hover .help-tip__bubble,
+.help-tip:focus-within .help-tip__bubble,
+.help-tip__bubble--open {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (max-width: 30rem) {
+  .help-tip__bubble {
+    max-width: 12rem;
+  }
 }

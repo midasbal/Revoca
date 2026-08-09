@@ -5,9 +5,11 @@ import { Card } from '../components/ui/Card';
 import { OnboardingCard } from '../components/borrower/OnboardingCard';
 import { BorrowerSurface } from '../components/borrower/BorrowerSurface';
 import { LenderSurface } from '../components/lender/LenderSurface';
+import { GasFundingNotice } from '../components/GasFundingNotice';
 import { useBorrowerStanding } from '../hooks/useBorrowerStanding';
 import { useLenderPosition } from '../hooks/useLenderPosition';
 import { useRatioBands } from '../hooks/useRatioBands';
+import { useGasFunding } from '../hooks/useGasFunding';
 import { CHAIN_ID } from '../chain';
 
 type Mode = 'borrow' | 'lend';
@@ -23,9 +25,14 @@ export default function LendPage() {
   const { address, isConnected, chainId } = useAccount();
   const [mode, setMode] = useState<Mode>('borrow');
 
-  const standing = useBorrowerStanding(mode === 'borrow' && isConnected && chainId === CHAIN_ID ? address : undefined);
-  const lender = useLenderPosition(mode === 'lend' && isConnected && chainId === CHAIN_ID ? address : undefined);
+  const onRightChain = isConnected && chainId === CHAIN_ID;
+  const standing = useBorrowerStanding(mode === 'borrow' && onRightChain ? address : undefined);
+  const lender = useLenderPosition(mode === 'lend' && onRightChain ? address : undefined);
   const bandsState = useRatioBands();
+  // Gas, unlike standing or a pool position, isn't mode-specific: any
+  // connected wallet on the right chain needs MON before it can send
+  // ANYTHING, borrow or lend, mint or deposit, see useGasFunding.
+  const gasFunding = useGasFunding(address, onRightChain);
 
   return (
     <div className="page-wrap">
@@ -60,6 +67,8 @@ export default function LendPage() {
           <span className="lend-toggle__option-desc">Supply liquidity, earn from borrower interest</span>
         </button>
       </div>
+
+      {onRightChain && <GasFundingNotice state={gasFunding} />}
 
       {!isConnected || !address ? (
         <Card className="placeholder">

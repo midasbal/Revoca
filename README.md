@@ -308,8 +308,8 @@ URL, see Current status and scope below.
 
 ## Current status and scope
 
-This section describes what actually exists right now, not the plan or the
-history, those live in `docs/ROADMAP.md` and the "Update" notes above.
+This section describes what actually exists right now, not the plan, see
+`ROADMAP.md` for what comes next, or the history in the "Update" notes above.
 
 **Built and live:**
 
@@ -350,7 +350,8 @@ history, those live in `docs/ROADMAP.md` and the "Update" notes above.
 - Liquidation is still all-or-nothing (a liquidator must repay the full
   outstanding debt), not partial.
 - Cross-pool revocation propagation, native token, ZK identity, and the
-  rest of `docs/ROADMAP.md`'s backlog remain explicitly out of scope.
+  rest of `ROADMAP.md`'s "Deliberately not here" list remain explicitly out
+  of scope.
 
 The attestor is a trusted off-chain signer of facts regardless of gate
 mode. That trust boundary is explicit, not hidden: a compromised attestor

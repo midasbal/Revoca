@@ -6,6 +6,7 @@ import { BACKEND_URL, provisionBorrower } from '../../api/onboarding';
 import { Button } from '../ui/Button';
 import { RatioBandsTable } from './RatioBandsTable';
 import { StandingFormRing, type FormRingPhase } from './StandingFormRing';
+import { HelpTip } from '../ui/HelpTip';
 import { type RatioBandsState } from '../../hooks/useRatioBands';
 import { formatBps, explorerTxUrl, shortHash } from '../../chain';
 
@@ -104,6 +105,10 @@ export function OnboardingCard({ address, bandsState }: { address: Address; band
               plus testnet gas and rtUSD so you can actually borrow right away.
             </p>
 
+            <p className="eyebrow onboarding__level-label">
+              Verification level
+              <HelpTip label="Each level is a real CompliancePolicy band, not a marketing tier: a higher level earns a lower collateral ratio, so it borrows on lighter terms." />
+            </p>
             <div className="segmented" role="radiogroup" aria-label="Verification level">
               {ONBOARDING_SUBTIERS.map((level) => {
                 const ratioBps = ratioForSubTier(bandsState, level);

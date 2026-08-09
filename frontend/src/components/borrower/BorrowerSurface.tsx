@@ -6,6 +6,7 @@ import { AmountAction } from './AmountAction';
 import { RepayAction } from './RepayAction';
 import { PoolContextRail } from './PoolContextRail';
 import { StandingNoteRail } from './StandingNoteRail';
+import { HelpTip } from '../ui/HelpTip';
 import type { BorrowerSnapshot } from '../../hooks/useBorrowerStanding';
 import type { RatioBandsState } from '../../hooks/useRatioBands';
 import { useBorrowerActions } from '../../hooks/useBorrowerActions';
@@ -61,7 +62,10 @@ export function BorrowerSurface({
               <RingMark phase={phase} prefersReduced={prefersReduced} onStrikeComplete={completeStrike} />
             </div>
             <div className="field seal-band__standing">
-              <p className="eyebrow field__label">Standing</p>
+              <p className="eyebrow field__label">
+                Standing
+                <HelpTip label="Your verified A-Pass status, read live from Cleanverse. VALID means it currently holds; STRUCK means it lapsed and the position is unwinding." />
+              </p>
               <p className={phase === 'struck' ? 'field__value field__value--struck' : 'field__value field__value--valid'}>
                 {phase === 'struck' ? 'STRUCK' : 'VALID'}
               </p>
@@ -86,7 +90,10 @@ export function BorrowerSurface({
 
           <div className="stats">
             <div className="stat">
-              <p className="eyebrow stat__label">Your ratio</p>
+              <p className="eyebrow stat__label">
+                Your ratio
+                <HelpTip label="How much collateral your tier requires per unit borrowed. A stronger verified tier earns a lower ratio, so it borrows on lighter terms." />
+              </p>
               <p className="stat__value">
                 <TickingValue value={formatBps(standing.ratioBps)} />
               </p>
@@ -144,7 +151,7 @@ export function BorrowerSurface({
             onApprove={(amount) => void actions.approve(amount)}
             onSubmit={(amount) => void actions.postCollateral(amount)}
             submitLabel="Post collateral"
-            error={actions.pending === null ? actions.error : null}
+            error={actions.errorFor('approve') ?? actions.errorFor('post')}
           />
 
           <div className="ruled">
@@ -158,7 +165,7 @@ export function BorrowerSurface({
             actionPending={actions.pending === 'borrow'}
             onSubmit={(amount) => void actions.borrow(amount)}
             submitLabel="Borrow"
-            error={actions.pending === null ? actions.error : null}
+            error={actions.errorFor('borrow')}
           />
 
           <div className="ruled">
@@ -171,7 +178,7 @@ export function BorrowerSurface({
             actionPending={actions.pending === 'repay'}
             onApprove={(amount) => void actions.approve(amount)}
             onSubmit={(amount) => void actions.repay(amount)}
-            error={actions.pending === null ? actions.error : null}
+            error={actions.errorFor('approve') ?? actions.errorFor('repay')}
           />
 
           <div className="ruled">
@@ -185,7 +192,7 @@ export function BorrowerSurface({
             actionPending={actions.pending === 'withdraw'}
             onSubmit={(amount) => void actions.withdrawCollateral(amount)}
             submitLabel="Withdraw"
-            error={actions.pending === null ? actions.error : null}
+            error={actions.errorFor('withdraw')}
           />
         </div>
       </div>

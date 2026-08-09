@@ -3,6 +3,7 @@ import { AmountAction } from '../borrower/AmountAction';
 import { PoolContextRail } from '../borrower/PoolContextRail';
 import { LenderNoteRail } from './LenderNoteRail';
 import { Button } from '../ui/Button';
+import { HelpTip } from '../ui/HelpTip';
 import { useLenderActions } from '../../hooks/useLenderActions';
 import type { LenderSnapshot } from '../../hooks/useLenderPosition';
 import { formatAmount, formatBps, shortAddress } from '../../chain';
@@ -63,7 +64,10 @@ export function LenderSurface({ address, lender }: { address: Address; lender: L
               </p>
             </div>
             <div className="stat">
-              <p className="eyebrow stat__label">Utilization</p>
+              <p className="eyebrow stat__label">
+                Utilization
+                <HelpTip label="How much of the pool's liquidity is currently out on loan. Higher utilization means less idle liquidity available to withdraw on demand." />
+              </p>
               <p className="stat__value">{formatBps(lender.utilizationBps)}</p>
             </div>
           </div>
@@ -102,7 +106,7 @@ export function LenderSurface({ address, lender }: { address: Address; lender: L
               A real on-chain mint, straight to your wallet, no backend involved. rtUSD is a testnet token whose mint is
               intentionally open, never a stand-in for real value.
             </p>
-            {actions.pending === null && actions.error && <p className="action__status action__status--error">{actions.error}</p>}
+            {actions.errorFor('mint') && <p className="action__status action__status--error">{actions.errorFor('mint')}</p>}
           </div>
 
           <div className="ruled">
@@ -120,7 +124,7 @@ export function LenderSurface({ address, lender }: { address: Address; lender: L
             onApprove={(amount) => void actions.approve(amount)}
             onSubmit={(amount) => void actions.deposit(amount)}
             submitLabel="Deposit"
-            error={actions.pending === null ? actions.error : null}
+            error={actions.errorFor('approve') ?? actions.errorFor('deposit')}
           />
 
           <div className="ruled">
@@ -134,7 +138,7 @@ export function LenderSurface({ address, lender }: { address: Address; lender: L
             actionPending={actions.pending === 'withdraw'}
             onSubmit={(amount) => void actions.withdraw(amount)}
             submitLabel="Withdraw"
-            error={actions.pending === null ? actions.error : null}
+            error={actions.errorFor('withdraw')}
           />
           {lender.shareValue > lender.idleLiquidity && (
             <p className="notice" style={{ marginTop: '0.5rem' }}>

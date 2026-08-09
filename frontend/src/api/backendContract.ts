@@ -61,6 +61,21 @@ export interface FundResponse {
   amount: string;
 }
 
+export interface FundGasRequest {
+  address: Address;
+}
+/**
+ * Gas only, no rtUSD mint, for ANY connected wallet, not just one that
+ * went through borrower onboarding, see backend/src/onboarding/fund.ts's
+ * fundGasOnly. `funded: false` is a normal, successful response, it
+ * means the wallet already had enough and nothing was sent.
+ */
+export interface FundGasResponse {
+  address: Address;
+  funded: boolean;
+  gasTxHash: `0x${string}` | null;
+}
+
 export interface StrikeRequest {
   address: Address;
 }
@@ -84,6 +99,7 @@ export interface ActionErrorResponse {
 export const BACKEND_ROUTES = {
   provision: { method: 'POST', path: '/api/onboarding/provision' },
   fund: { method: 'POST', path: '/api/onboarding/fund' },
+  fundGas: { method: 'POST', path: '/api/onboarding/fund-gas' },
   strike: { method: 'POST', path: '/api/positions/:address/strike' },
   advance: { method: 'POST', path: '/api/positions/:address/advance' },
   lastError: { method: 'GET', path: '/api/positions/:address/last-error' },

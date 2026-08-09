@@ -12,22 +12,25 @@ export type ActionKind = 'approve' | 'post' | 'borrow' | 'repay' | 'withdraw';
  * hardcoded limit: a hardcoded 300k gas cap silently under-estimated
  * `borrow()`'s real cost during this session's own testing (real gasUsed
  * ran near 950k on Monad testnet), a hardcoded ceiling is a real way to
- * make a genuinely valid action fail.
+ * make a genuinely valid action fail. Errors are scoped per action kind,
+ * not a single shared slot: rejecting one action must never surface
+ * under an unrelated one, each button owns only its own failure.
  */
 export function useBorrowerActions() {
   const { writeContractAsync } = useWriteContract();
   const [pending, setPending] = useState<ActionKind | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<ActionKind, string>>>({});
 
   async function run(kind: ActionKind, send: () => Promise<Hex>): Promise<Hex> {
     setPending(kind);
-    setError(null);
+    setErrors((prev) => ({ ...prev, [kind]: undefined }));
     try {
       const hash = await send();
       await publicClient.waitForTransactionReceipt({ hash, timeout: 180_000 });
       return hash;
     } catch (err) {
-      setError(describeTxError(err));
+      const message = describeTxError(err);
+      setErrors((prev) => ({ ...prev, [kind]: message }));
       throw err;
     } finally {
       setPending(null);
@@ -36,8 +39,10 @@ export function useBorrowerActions() {
 
   return {
     pending,
-    error,
-    clearError: () => setError(null),
+    errors,
+    /** This kind's own error, or null. What every consumer should actually read, see BorrowerSurface. */
+    errorFor: (kind: ActionKind): string | null => errors[kind] ?? null,
+    clearError: (kind: ActionKind) => setErrors((prev) => ({ ...prev, [kind]: undefined })),
     approve: (amount: bigint) =>
       run('approve', () =>
         writeContractAsync({ address: DEPLOYMENT.asset, abi: ASSET_ABI, functionName: 'approve', args: [DEPLOYMENT.pool, amount] }),

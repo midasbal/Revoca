@@ -8,9 +8,7 @@ between that and production, grounded in the code as it exists today, not
 aspiration. One honest reason per item, no padding.
 
 This file is the public path-to-production roadmap, also rendered at
-`/roadmap` in the app. [docs/ROADMAP.md](docs/ROADMAP.md) is a separate,
-internal build log from the hackathon build window, kept for history, not a
-forward-looking plan.
+`/roadmap` in the app, and the only roadmap tracked in this repository.
 
 ## Near-term
 

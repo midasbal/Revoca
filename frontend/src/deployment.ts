@@ -5,8 +5,8 @@
  * since backend tooling regenerates it locally and it isn't meant to be
  * the source of truth for a deployed frontend build).
  *
- * PROVISIONAL, see docs/ROADMAP.md's refinement backlog: this pool will
- * be redeployed again as the contracts keep evolving. Update this file's
+ * PROVISIONAL, see ROADMAP.md: this pool will be redeployed again as the
+ * contracts keep evolving. Update this file's
  * addresses (from deployments/testnet.json after a redeploy) when that
  * happens, this is the one place the frontend reads them from.
  */

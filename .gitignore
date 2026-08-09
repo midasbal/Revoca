@@ -8,7 +8,7 @@ docs/*.pdf
 # Internal planning/notes docs, kept local only. Only README.md files and
 # docs/THREAT_MODEL.md, docs/ARCHITECTURE.md, docs/PROJECT.md are tracked.
 CLAUDE.md
-docs/ROADMAP.md
+docs/BUILD_LOG.md
 docs/HACKATHON.md
 docs/BUILD_PLAN.md
 docs/SUBMISSION.md

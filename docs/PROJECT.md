@@ -1,5 +1,14 @@
 # Revoca
 
+**Update.** This is the original scoping document, written before the build
+started, kept for the framing (still accurate) and the historical record. It
+is not the current state: interest is now utilization-based, not simple
+linear (see `LendingPool.sol`), the pool is deployed and live on real Monad
+testnet, not a stretch goal, and the settlement asset is rtUSD (a real,
+unrestricted-mint testnet token), not `aUSDC` or the A-Token. See
+[README.md](../README.md) for what actually exists today and
+[ROADMAP.md](../ROADMAP.md) for what's next.
+
 **Track:** DeFi (Compliant DeFi)
 **Chain:** Monad testnet (via Cleanverse UAT sandbox)
 

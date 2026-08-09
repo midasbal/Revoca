@@ -75,9 +75,9 @@ see docs/DESIGN_A_SPIKE.md's window-session findings), and a full real
 position lifecycle, borrow, a real Cleanverse freeze, `complianceVerify`
 flipping to `false`, flag, grace, self-cure, liquidation spillover,
 resolution, has been driven through it end to end, all real transactions,
-no mock data. That deployment remains PROVISIONAL (the pool will be
-redeployed again once the pluggable unwind lands, per docs/ROADMAP.md's
-refinement backlog), not the final registered production deployment.
+no mock data. That deployment remains PROVISIONAL (see ROADMAP.md for
+what's still ahead of a hardened, non-provisional deploy), not the final
+registered production deployment.
 
 **A documented boundary divergence, worth knowing before ever setting a
 real on-chain rule.** The CCP integration guide phrases the validator's
