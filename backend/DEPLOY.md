@@ -51,12 +51,28 @@ for no real benefit, see the frontend/backend split this repo already
 works under.
 
 1. From the Vercel dashboard, "Add New Project", import this repo.
-2. Set **Root Directory** to `backend`. **Framework Preset**: "Other"
-   (there is no frontend framework here). Vercel auto-detects `api/*.ts`
-   as Node serverless functions; no Build Command or Output Directory is
-   needed, `backend/vercel.json` (committed) sets each function's
-   `maxDuration`, and Vercel's own zero-config detection handles the
-   rest.
+2. Set **Root Directory** to `backend`. **Framework Preset**: "Other".
+   **Build Command**: leave on Vercel's default (`backend/vercel.json`,
+   committed, sets `buildCommand: ""`, which takes precedence and skips
+   the build step entirely; don't manually override it to anything else
+   in the dashboard). **Output Directory**: leave default/blank, none is
+   needed. **Install Command**: leave default (`npm install`). Vercel's
+   own zero-config detection picks up `api/*.ts` as Node serverless
+   functions independent of any of this; `backend/vercel.json` also sets
+   each function's `maxDuration`.
+
+   Why `buildCommand: ""` matters: `package.json`'s `build` script is
+   `tsc --noEmit`, a local/CI typecheck with no output files. Left to its
+   default, Vercel (Framework Preset "Other") auto-runs that script as
+   the Build Command, then looks for a static Output Directory to serve
+   afterward (defaulting to `public`), and fails with "No Output
+   Directory named 'public' found" since a pure typecheck produces
+   nothing there. This project has no static output at all, only
+   serverless functions, which Vercel's `@vercel/node` builder compiles
+   per-function at deploy time regardless of any repo-level build step.
+   `buildCommand: ""` tells Vercel to skip the build phase (and therefore
+   the output-directory check) entirely; `npm run build` still works
+   fine locally/in CI, untouched.
 3. Set these **Environment Variables** (Production, and Preview if you
    want PR previews to work), values from your own `.env`, never commit
    them:
