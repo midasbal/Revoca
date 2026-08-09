@@ -26,14 +26,6 @@ export function Hero() {
       </div>
 
       <div className="hero-full__content">
-        <motion.p
-          className="eyebrow hero-full__eyebrow"
-          initial={prefersReduced ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, delay: 0.2, ease: EASE_CONFIDENT }}
-        >
-          Revoca
-        </motion.p>
         <motion.h1
           className="hero-full__title"
           initial={prefersReduced ? false : { opacity: 0, y: 16 }}
