@@ -1112,44 +1112,89 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
-/* Mode toggle: borrow / lend, two sides of the same pool.               */
+/* Lend toggle: borrow / lend, two sides of the same pool. Prominent by  */
+/* design, this IS the page's primary navigation decision, so it reads   */
+/* as a wide, labeled switch, not a small pill easy to miss.             */
 /* -------------------------------------------------------------------- */
 
-.mode-toggle {
+.lend-toggle {
   display: flex;
-  width: fit-content;
-  margin: 0 auto var(--space-6);
+  width: 100%;
+  max-width: 44rem;
+  margin: var(--space-6) 0;
+  background: var(--paper-raised);
   border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-round);
-  padding: 3px;
-  gap: 3px;
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
-.mode-toggle__option {
+.lend-toggle__option {
+  flex: 1;
   appearance: none;
   border: none;
   background: transparent;
-  color: var(--ink-soft);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: var(--space-2) var(--space-5);
-  border-radius: var(--radius-round);
   cursor: pointer;
-  transition:
-    background-color var(--duration-fast) var(--ease-confident),
-    color var(--duration-fast) var(--ease-confident);
+  text-align: left;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: background-color var(--duration-fast) var(--ease-confident);
 }
 
-.mode-toggle__option:hover {
+.lend-toggle__option + .lend-toggle__option {
+  border-left: 1px solid var(--rule-strong);
+}
+
+.lend-toggle__option:hover {
+  background: var(--paper-recessed);
+}
+
+.lend-toggle__option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.lend-toggle__option-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-md);
   color: var(--ink);
+  transition: color var(--duration-fast) var(--ease-confident);
 }
 
-.mode-toggle__option--active {
+.lend-toggle__option-desc {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  transition: color var(--duration-fast) var(--ease-confident);
+}
+
+.lend-toggle__option--active {
   background: var(--ink);
+}
+
+.lend-toggle__option--active:hover {
+  background: var(--ink);
+}
+
+.lend-toggle__option--active .lend-toggle__option-label {
   color: var(--paper-raised);
+}
+
+.lend-toggle__option--active .lend-toggle__option-desc {
+  color: var(--paper-raised);
+  opacity: 0.65;
+}
+
+@media (max-width: 30rem) {
+  .lend-toggle {
+    flex-direction: column;
+  }
+
+  .lend-toggle__option + .lend-toggle__option {
+    border-left: none;
+    border-top: 1px solid var(--rule-strong);
+  }
 }
 
 .placeholder {
@@ -1583,6 +1628,170 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
+/* Pool: risk composition, not TVL. Uses the page's full measure, this   */
+/* is the one page whose subject IS a distribution, so it earns the      */
+/* width rather than sitting in a narrow centered card.                  */
+/* -------------------------------------------------------------------- */
+
+.pool-liquidity {
+  width: 100%;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-card);
+  box-shadow:
+    0 1px 2px rgba(var(--shadow-color), 0.06),
+    0 10px 28px rgba(var(--shadow-color), 0.06);
+  padding: clamp(1.25rem, 3.4vw, 2.25rem);
+  margin-top: var(--space-6);
+}
+
+.pool-composition {
+  margin-top: var(--space-7);
+}
+
+.pool-composition__head {
+  max-width: 46rem;
+}
+
+.pool-composition__grid {
+  margin-top: var(--space-5);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
+
+@media (max-width: 58rem) {
+  .pool-composition__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pool-panel {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-card);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+.pool-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.pool-panel__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+
+.pool-panel__note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+.composition-bar {
+  display: flex;
+  width: 100%;
+  height: 2.25rem;
+  margin-top: var(--space-4);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-chip);
+  background: var(--paper-recessed);
+  overflow: hidden;
+}
+
+.composition-bar--empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.composition-bar__empty-label {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+.composition-bar__segment {
+  min-width: 3px;
+  border-right: 1px solid var(--paper-recessed);
+  transition: flex-grow var(--duration-lift) var(--ease-confident);
+}
+
+.composition-bar__segment:last-child {
+  border-right: none;
+}
+
+.composition-bar__segment--neutral {
+  background: var(--ink-soft);
+}
+
+.composition-bar__segment--grace {
+  background: var(--grace);
+}
+
+.composition-bar__segment--struck {
+  background: var(--struck);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composition-bar__segment {
+    transition: none;
+  }
+}
+
+.composition-legend {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.composition-legend__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+}
+
+.composition-legend__swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.composition-legend__swatch--neutral {
+  background: var(--ink-soft);
+}
+
+.composition-legend__swatch--grace {
+  background: var(--grace);
+}
+
+.composition-legend__swatch--struck {
+  background: var(--struck);
+}
+
+.composition-legend__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.composition-legend__value {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------- */
 /* Amount inputs, the four real borrower actions                        */
 /* -------------------------------------------------------------------- */
 
@@ -1666,18 +1875,151 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
-/* Docs: the reference. Narrower measure than the rest of the app, this  */
-/* is read top to bottom like the landing narrative, not scanned.        */
+/* Docs: a real reference layout, a persistent section nav beside the    */
+/* content column, not a centered blog column with dead space either     */
+/* side.                                                                 */
 /* -------------------------------------------------------------------- */
 
 .docs {
+  max-width: 66rem;
+}
+
+.docs-head {
+  max-width: none;
+  position: relative;
+}
+
+.docs-head__repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-top: var(--space-4);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-strong);
+  padding-bottom: 2px;
+  transition:
+    color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident);
+}
+
+.docs-head__repo:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.docs-layout {
+  margin-top: var(--space-6);
+  display: grid;
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  gap: var(--space-7);
+  align-items: start;
+}
+
+.docs-nav {
+  position: sticky;
+  top: 5.5rem;
+}
+
+.docs-nav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--rule);
+}
+
+.docs-nav__link {
+  display: block;
+  padding: var(--space-2) 0 var(--space-2) var(--space-4);
+  margin-left: -1px;
+  border-left: 1px solid transparent;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  color: var(--ink-faint);
+  text-decoration: none;
+  transition:
+    color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident);
+}
+
+.docs-nav__link:hover {
+  color: var(--ink-soft);
+}
+
+.docs-nav__link--active {
+  color: var(--ink);
+  border-left-color: var(--ink);
+  font-weight: 500;
+}
+
+.docs-nav__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.docs-content {
+  min-width: 0;
   max-width: 46rem;
 }
 
+@media (max-width: 54rem) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+
+  .docs-nav {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-header);
+    margin: 0 -1.25rem;
+    padding: var(--space-3) 1.25rem;
+    background: var(--ground);
+    border-bottom: 1px solid var(--rule);
+    overflow-x: auto;
+  }
+
+  .docs-nav__list {
+    flex-direction: row;
+    gap: var(--space-4);
+    border-left: none;
+    width: max-content;
+  }
+
+  .docs-nav__link {
+    padding: var(--space-1) 0;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+
+  .docs-nav__link--active {
+    border-left-color: transparent;
+    border-bottom-color: var(--ink);
+  }
+
+  .docs-content {
+    max-width: none;
+  }
+}
+
 .docs-section {
+  scroll-margin-top: 5.5rem;
   margin-top: var(--space-7);
   padding-top: var(--space-6);
   border-top: 1px solid var(--rule);
+}
+
+.docs-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .docs-section--last {
@@ -1774,4 +2116,56 @@ button {
 
 .docs-contracts .rail-address {
   border-bottom: 1px solid var(--rule);
+}
+
+.docs-chips {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.docs-chip {
+  font-size: var(--text-xs);
+  color: var(--ink-soft);
+  background: var(--paper-recessed);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-chip);
+  padding: 0.3em 0.6em;
+}
+
+.docs-callout {
+  margin-top: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--struck-wash);
+  border: 1px solid var(--rule-strong);
+  border-left: 3px solid var(--struck);
+  border-radius: var(--radius-card);
+}
+
+.docs-callout__label {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--struck);
+}
+
+.docs-callout__body {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.docs-callout__body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--ink);
+  background: var(--paper-raised);
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
 }

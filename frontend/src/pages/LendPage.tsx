@@ -29,12 +29,35 @@ export default function LendPage() {
 
   return (
     <div className="page-wrap">
-      <div className="mode-toggle" role="tablist" aria-label="Borrow or lend">
-        <button type="button" role="tab" aria-selected={mode === 'borrow'} className={`mode-toggle__option${mode === 'borrow' ? ' mode-toggle__option--active' : ''}`} onClick={() => setMode('borrow')}>
-          Borrow
+      <div className="registry-head">
+        <p className="eyebrow">Lend</p>
+        <h1 className="registry-head__title">Two sides of one pool</h1>
+        <p className="registry-head__lede">
+          Borrowers post collateral and draw against their live A-Pass standing; lenders supply the liquidity that
+          standing borrows against. Same pool, same live state, switch below.
+        </p>
+      </div>
+
+      <div className="lend-toggle" role="tablist" aria-label="Borrow or lend">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'borrow'}
+          className={`lend-toggle__option${mode === 'borrow' ? ' lend-toggle__option--active' : ''}`}
+          onClick={() => setMode('borrow')}
+        >
+          <span className="lend-toggle__option-label">Borrow</span>
+          <span className="lend-toggle__option-desc">Post collateral, draw against your standing</span>
         </button>
-        <button type="button" role="tab" aria-selected={mode === 'lend'} className={`mode-toggle__option${mode === 'lend' ? ' mode-toggle__option--active' : ''}`} onClick={() => setMode('lend')}>
-          Lend
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'lend'}
+          className={`lend-toggle__option${mode === 'lend' ? ' lend-toggle__option--active' : ''}`}
+          onClick={() => setMode('lend')}
+        >
+          <span className="lend-toggle__option-label">Lend</span>
+          <span className="lend-toggle__option-desc">Supply liquidity, earn from borrower interest</span>
         </button>
       </div>
 
