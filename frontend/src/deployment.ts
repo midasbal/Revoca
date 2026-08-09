@@ -25,8 +25,9 @@ export const DEPLOYMENT = {
 export const DEMO_BORROWER = '0xd4D9F9787557Df143e962F1A42B2adA38687355A' as const;
 
 /**
- * The block this demo's CURRENT open position started at (its fresh
- * postCollateral, block 52036825, reset 2026-08-08). The ledger reads
+ * The block this demo's CURRENT lifecycle started at (its fresh
+ * postCollateral, block 52354663, rebuilt 2026-08-10 right before the
+ * real attestor-hedge freeze -> flag -> unwind run). The ledger reads
  * events from here forward, not from the pool's deploy block: Monad's
  * public testnet RPC caps eth_getLogs at 100 blocks (confirmed this
  * session, see docs/OPEN_QUESTIONS.md), so scanning the pool's entire
@@ -34,4 +35,4 @@ export const DEMO_BORROWER = '0xd4D9F9787557Df143e962F1A42B2adA38687355A' as con
  * view is for, it's a record of THIS lifecycle. Update this after
  * running backend/scripts/reset-demo-position*.ts again.
  */
-export const DEMO_ORIGIN_BLOCK = 52036824n;
+export const DEMO_ORIGIN_BLOCK = 52354662n;
