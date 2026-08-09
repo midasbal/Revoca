@@ -21,6 +21,7 @@
   --ink: #1b2321;              /* bottle-ink green-black, primary text and strokes */
   --ink-soft: #57635b;         /* muted ink, secondary text */
   --ink-faint: #8a938c;        /* faintest ink, tertiary/meta text */
+  --ink-strong: #05100c;       /* the one secondary emphasis tier, more contrast than --ink, used sparingly */
 
   --ground: #dde1d8;           /* the app's fixed environment behind every page, one shade below paper */
   --paper: #e6e9e1;            /* cool sage register stock, page/card ground */

@@ -814,10 +814,14 @@ button {
   flex: none;
 }
 
+.brand-mark {
+  display: block;
+  object-fit: contain;
+}
+
 .site-header__mark {
   width: 1.5rem;
   height: 1.5rem;
-  overflow: visible;
 }
 
 .site-header__wordmark {

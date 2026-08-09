@@ -189,12 +189,28 @@
   padding: clamp(4.5rem, 12vw, 8.5rem) 0;
 }
 
+.narrative-section__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.narrative-section--right .narrative-section__grid {
+  grid-template-columns: 1fr 1fr;
+}
+
 .narrative-section__inner {
   max-width: 34rem;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   text-align: left;
+  grid-column: 1;
+}
+
+.narrative-section--right .narrative-section__inner {
+  grid-column: 2;
 }
 
 .narrative-section--left .narrative-section__inner {
@@ -203,6 +219,38 @@
 
 .narrative-section--right .narrative-section__inner {
   margin-left: auto;
+}
+
+.narrative-section__fill {
+  position: relative;
+  grid-column: 2;
+  height: clamp(16rem, 26vw, 22rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.narrative-section--right .narrative-section__fill {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.narrative-section__fill-ring {
+  width: clamp(14rem, 22vw, 19rem);
+  opacity: 0.16;
+}
+
+.narrative-fill-ring {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.narrative-section__fill .narrative-section__texture {
+  text-align: center;
 }
 
 .narrative-section__mark {
@@ -234,9 +282,22 @@
   color: var(--ink-faint);
 }
 
-.narrative-section--break {
-  padding-top: clamp(5.5rem, 14vw, 10rem);
-  padding-bottom: clamp(5.5rem, 14vw, 10rem);
+/* Amber marks exactly the words that carry the theme of standing and its
+   breaking, the same single signal color the ring uses. It settles in
+   just after the section's own reveal rather than appearing instantly,
+   a quiet confirmation rather than a highlight. */
+.kw {
+  color: inherit;
+  transition: color 0.6s var(--ease-confident) 0.3s;
+}
+
+.kw--lit.kw--primary {
+  color: var(--struck);
+}
+
+.kw--lit.kw--secondary {
+  color: var(--ink-strong);
+  font-weight: 600;
 }
 
 .narrative-ring-wrap {
@@ -289,10 +350,36 @@
   color: var(--ink-faint);
 }
 
-@media (max-width: 40rem) {
-  .narrative-section__inner {
+@media (max-width: 48rem) {
+  .narrative-section__grid,
+  .narrative-section--right .narrative-section__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .narrative-section__inner,
+  .narrative-section--right .narrative-section__inner {
+    grid-column: 1;
     margin-left: 0;
     margin-right: 0;
     max-width: 100%;
+  }
+
+  .narrative-section__fill,
+  .narrative-section--right .narrative-section__fill {
+    grid-column: 1;
+    grid-row: 2;
+    height: auto;
+    padding-top: var(--space-6);
+  }
+
+  .narrative-section__fill-ring {
+    width: 9rem;
+    opacity: 0.12;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kw {
+    transition-duration: 0.001ms;
   }
 }
