@@ -5,6 +5,8 @@ import { usePositionsRegistry } from '../hooks/usePositionsRegistry';
 import { positionStatus } from '../positionStatus';
 import { formatAmount, formatBps, shortAddress } from '../chain';
 
+const NOOP = () => {};
+
 /**
  * The system-wide view: every real open position in the pool, live
  * standing, not one record. Addresses are discovered from real on-chain
@@ -61,7 +63,7 @@ export default function PositionsPage() {
               <li key={entry.address}>
                 <Link to={`/positions/${entry.address}`} className="registry-row">
                   <span className="registry-row__ring" aria-hidden="true">
-                    <RingMark phase={status.phase} prefersReduced={prefersReduced} onStrikeComplete={() => {}} />
+                    <RingMark phase={status.phase} prefersReduced={prefersReduced} onStrikeComplete={NOOP} />
                   </span>
                   <span className="registry-row__body">
                     <span className="registry-row__address mono">{shortAddress(entry.address)}</span>

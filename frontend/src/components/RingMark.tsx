@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import type { StrikePhase } from '../hooks/useStrikePhase';
 import { usePrevious } from '../hooks/usePrevious';
@@ -19,7 +20,7 @@ const AMBER_R = 50;
  * moment on the page. Respects prefers-reduced-motion: no breathing, no
  * sweep, the ring simply renders in its resting state for the phase.
  */
-export function RingMark({
+export const RingMark = memo(function RingMark({
   phase,
   prefersReduced,
   onStrikeComplete,
@@ -95,4 +96,4 @@ export function RingMark({
       />
     </motion.svg>
   );
-}
+});

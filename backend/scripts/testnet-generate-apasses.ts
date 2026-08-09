@@ -28,7 +28,6 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import type { Hex } from "viem";
 
 import { loadConfig } from "../src/cleanverse/config.js";
 import { CleanverseClient } from "../src/cleanverse/client.js";

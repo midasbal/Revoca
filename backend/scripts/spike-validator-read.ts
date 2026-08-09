@@ -58,7 +58,7 @@ interface ProbeOutcome {
 }
 
 async function readOne(
-  client: ReturnType<typeof createPublicClient>,
+  _client: ReturnType<typeof createPublicClient>,
   label: string,
   fn: () => Promise<unknown>,
 ): Promise<ProbeOutcome> {

@@ -12,7 +12,7 @@ export function Shell() {
     <>
       <Ground pulseKey={blockNumber !== null ? blockNumber.toString() : null} />
       <div className="shell">
-        <Header />
+        <Header blockNumber={blockNumber} />
         <main className="shell__main">
           <Outlet />
         </main>

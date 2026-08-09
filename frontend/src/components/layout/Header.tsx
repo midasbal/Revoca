@@ -3,7 +3,6 @@ import { NavLink } from 'react-router-dom';
 import { BrandMark } from '../ui/BrandMark';
 import { LiveDot } from '../ui/LiveDot';
 import { ConnectButton } from '../../wallet/ConnectButton';
-import { useBlockHeight } from '../../hooks/useBlockHeight';
 
 const NAV_LINKS = [
   { to: '/lend', label: 'Lend' },
@@ -21,8 +20,7 @@ const NAV_LINKS = [
  * breakpoint where the inline nav hides, a toggle opens it as a dropdown,
  * navigation is core chrome, not something a narrow viewport should lose.
  */
-export function Header() {
-  const { blockNumber } = useBlockHeight();
+export function Header({ blockNumber }: { blockNumber: bigint | null }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (

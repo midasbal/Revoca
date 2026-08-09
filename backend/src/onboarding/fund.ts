@@ -32,6 +32,8 @@ const ASSET_ABI = parseAbi(["function mint(address to, uint256 amount) external"
 
 const GAS_TOP_UP_THRESHOLD = 3n * 10n ** 17n; // 0.3 MON
 const GAS_TOP_UP_AMOUNT = 3n * 10n ** 17n;
+/** Hard ceiling on any single rtUSD top-up this endpoint will mint, regardless of what a caller asks for. This is a public, unauthenticated endpoint (no Cleanverse verification gate, unlike provisionBorrower), so the requested `amount` is untrusted input, not a value to pass straight into `mint`. */
+export const MAX_FUND_AMOUNT = 2_000n * 10n ** 18n;
 /** Always left unspent, headroom for the funding transaction's own gas so a low-but-not-empty funder never sends its very last MON and gets stuck unable to pay for its own next tx. */
 const FUNDER_MIN_RESERVE = 5n * 10n ** 16n; // 0.05 MON
 
@@ -85,7 +87,16 @@ export interface FundResult {
   amount: string;
 }
 
+/** Thrown for a caller-supplied amount outside the sane range this public endpoint allows. */
+export class InvalidFundAmountError extends Error {}
+
 export async function fundBorrower(address: Address, amountRaw: bigint): Promise<FundResult> {
+  if (amountRaw <= 0n || amountRaw > MAX_FUND_AMOUNT) {
+    throw new InvalidFundAmountError(
+      `amount must be between 1 and ${MAX_FUND_AMOUNT.toString()} (2,000 rtUSD, 18 decimals), got ${amountRaw.toString()}.`,
+    );
+  }
+
   const { deployer, publicClient, deployerWallet } = connect();
 
   const fees = await publicClient.estimateFeesPerGas();

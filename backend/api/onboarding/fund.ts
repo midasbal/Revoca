@@ -5,7 +5,7 @@
  */
 import { isAddress } from "viem";
 import { handlePreflight, readJsonBody, sendJson, type MinimalRequest, type MinimalResponse } from "../_http.js";
-import { fundBorrower } from "../../src/onboarding/fund.js";
+import { fundBorrower, InvalidFundAmountError } from "../../src/onboarding/fund.js";
 
 export const config = { maxDuration: 30 };
 
@@ -52,6 +52,10 @@ export default async function handler(req: MinimalRequest, res: MinimalResponse)
     const result = await fundBorrower(body.address, amount);
     sendJson(res, 200, result);
   } catch (err) {
+    if (err instanceof InvalidFundAmountError) {
+      sendJson(res, 400, { error: err.message });
+      return;
+    }
     sendJson(res, 502, { error: err instanceof Error ? err.message : String(err) });
   }
 }
