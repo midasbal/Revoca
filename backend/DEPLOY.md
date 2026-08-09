@@ -90,11 +90,14 @@ works under.
      `src/onboarding/faucetConfig.ts`)
    - `COMPLIANCE_REGISTRY_ADDRESS` (optional, defaults to the current
      deployment's registry if unset, see `src/onboarding/deployment.ts`)
-4. Deploy. Vercel gives you a URL like `https://revoca-backend.vercel.app`.
-5. Set `VITE_BACKEND_URL=https://revoca-backend.vercel.app` on the
-   frontend project (its own env config, not this package). Onboarding
-   and the fund actions light up as soon as that's set, nothing else
-   changes.
+4. Deploy. Vercel gives you a URL (this project's current deployment:
+   `https://revoca-iota.vercel.app`).
+5. Set `VITE_BACKEND_URL` to that URL, no trailing slash (e.g.
+   `VITE_BACKEND_URL=https://revoca-iota.vercel.app`), on the frontend
+   project (its own env config, not this package), then redeploy the
+   frontend, Vite bakes `import.meta.env` values in at build time, not
+   runtime. Onboarding and the fund actions light up as soon as that's
+   set and redeployed, nothing else changes.
 
 ### Function duration
 
