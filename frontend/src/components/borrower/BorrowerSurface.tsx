@@ -148,10 +148,13 @@ export function BorrowerSurface({
             allowance={standing.allowance}
             approvePending={actions.pending === 'approve'}
             actionPending={actions.pending === 'post'}
+            phase={actions.phase}
             onApprove={(amount) => void actions.approve(amount)}
             onSubmit={(amount) => void actions.postCollateral(amount)}
             submitLabel="Post collateral"
+            successVerb="Posted"
             error={actions.errorFor('approve') ?? actions.errorFor('post')}
+            success={actions.successFor('post')}
           />
 
           <div className="ruled">
@@ -163,9 +166,12 @@ export function BorrowerSurface({
             unit="rtUSD"
             max={borrowRoom}
             actionPending={actions.pending === 'borrow'}
+            phase={actions.phase}
             onSubmit={(amount) => void actions.borrow(amount)}
             submitLabel="Borrow"
+            successVerb="Borrowed"
             error={actions.errorFor('borrow')}
+            success={actions.successFor('borrow')}
           />
 
           <div className="ruled">
@@ -176,9 +182,11 @@ export function BorrowerSurface({
             allowance={standing.allowance}
             approvePending={actions.pending === 'approve'}
             actionPending={actions.pending === 'repay'}
+            phase={actions.phase}
             onApprove={(amount) => void actions.approve(amount)}
             onSubmit={(amount) => void actions.repay(amount)}
             error={actions.errorFor('approve') ?? actions.errorFor('repay')}
+            success={actions.successFor('repay')}
           />
 
           <div className="ruled">
@@ -190,9 +198,12 @@ export function BorrowerSurface({
             unit="rtUSD"
             max={standing.collateral}
             actionPending={actions.pending === 'withdraw'}
+            phase={actions.phase}
             onSubmit={(amount) => void actions.withdrawCollateral(amount)}
             submitLabel="Withdraw"
+            successVerb="Withdrew"
             error={actions.errorFor('withdraw')}
+            success={actions.successFor('withdraw')}
           />
         </div>
       </div>

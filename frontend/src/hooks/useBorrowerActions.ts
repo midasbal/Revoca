@@ -16,17 +16,25 @@ export type ActionKind = 'approve' | 'post' | 'borrow' | 'repay' | 'withdraw';
  * not a single shared slot: rejecting one action must never surface
  * under an unrelated one, each button owns only its own failure.
  */
+export type ActionPhase = 'signing' | 'confirming';
+
 export function useBorrowerActions() {
   const { writeContractAsync } = useWriteContract();
   const [pending, setPending] = useState<ActionKind | null>(null);
+  const [phase, setPhase] = useState<ActionPhase | null>(null);
   const [errors, setErrors] = useState<Partial<Record<ActionKind, string>>>({});
+  const [successes, setSuccesses] = useState<Partial<Record<ActionKind, Hex>>>({});
 
   async function run(kind: ActionKind, send: () => Promise<Hex>): Promise<Hex> {
     setPending(kind);
+    setPhase('signing');
     setErrors((prev) => ({ ...prev, [kind]: undefined }));
+    setSuccesses((prev) => ({ ...prev, [kind]: undefined }));
     try {
       const hash = await send();
+      setPhase('confirming');
       await publicClient.waitForTransactionReceipt({ hash, timeout: 180_000 });
+      setSuccesses((prev) => ({ ...prev, [kind]: hash }));
       return hash;
     } catch (err) {
       const message = describeTxError(err);
@@ -34,15 +42,21 @@ export function useBorrowerActions() {
       throw err;
     } finally {
       setPending(null);
+      setPhase(null);
     }
   }
 
   return {
     pending,
+    /** 'signing' while the wallet prompt is up, 'confirming' once broadcast, waiting for the receipt. Null when idle. */
+    phase,
     errors,
     /** This kind's own error, or null. What every consumer should actually read, see BorrowerSurface. */
     errorFor: (kind: ActionKind): string | null => errors[kind] ?? null,
     clearError: (kind: ActionKind) => setErrors((prev) => ({ ...prev, [kind]: undefined })),
+    /** This kind's own last-confirmed tx hash, or null. Cleared the moment a new action of the same kind starts, so a stale success line never lingers past the next attempt. */
+    successFor: (kind: ActionKind): Hex | null => successes[kind] ?? null,
+    clearSuccess: (kind: ActionKind) => setSuccesses((prev) => ({ ...prev, [kind]: undefined })),
     approve: (amount: bigint) =>
       run('approve', () =>
         writeContractAsync({ address: DEPLOYMENT.asset, abi: ASSET_ABI, functionName: 'approve', args: [DEPLOYMENT.pool, amount] }),

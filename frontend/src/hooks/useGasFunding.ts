@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Address } from 'viem';
+import type { Address, Hex } from 'viem';
 import { useNativeBalance } from './useNativeBalance';
 import { fundGas } from '../api/onboarding';
 
@@ -10,7 +10,7 @@ export type GasFundingState =
   | { status: 'idle' }
   | { status: 'sufficient' }
   | { status: 'funding' }
-  | { status: 'funded' }
+  | { status: 'funded'; gasTxHash: Hex | null }
   | { status: 'error'; message: string };
 
 /**
@@ -39,7 +39,7 @@ export function useGasFunding(address: Address | undefined, active: boolean): Ga
 
     setState({ status: 'funding' });
     fundGas(address)
-      .then(() => setState({ status: 'funded' }))
+      .then((result) => setState({ status: 'funded', gasTxHash: result.gasTxHash }))
       .catch((err) => setState({ status: 'error', message: err instanceof Error ? err.message : String(err) }));
   }, [address, balance]);
 

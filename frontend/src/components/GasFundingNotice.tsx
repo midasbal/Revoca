@@ -1,5 +1,6 @@
 import type { GasFundingState } from '../hooks/useGasFunding';
 import { LiveDot } from './ui/LiveDot';
+import { explorerTxUrl, shortHash } from '../chain';
 
 /**
  * Quiet, transient feedback for useGasFunding's point-of-need top-up.
@@ -13,6 +14,19 @@ export function GasFundingNotice({ state }: { state: GasFundingState }) {
       <div className="gas-funding-notice" role="status">
         <LiveDot className="gas-funding-notice__dot" />
         <span>Funding testnet gas so you can transact&hellip;</span>
+      </div>
+    );
+  }
+
+  if (state.status === 'funded' && state.gasTxHash) {
+    return (
+      <div className="gas-funding-notice" role="status">
+        <span>
+          Testnet gas funded &middot;{' '}
+          <a href={explorerTxUrl(state.gasTxHash)} target="_blank" rel="noreferrer">
+            {shortHash(state.gasTxHash)}
+          </a>
+        </span>
       </div>
     );
   }

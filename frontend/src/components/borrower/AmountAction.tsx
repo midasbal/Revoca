@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
-import { formatUnits, parseUnits } from 'viem';
+import { formatUnits, parseUnits, type Hex } from 'viem';
 import { Button } from '../ui/Button';
+import { TxStatus } from '../ui/TxStatus';
+import type { ActionPhase } from '../../hooks/useBorrowerActions';
 
 /**
  * One real amount-driven action (post collateral, borrow, withdraw): an
@@ -18,10 +20,14 @@ export function AmountAction({
   allowance,
   approvePending,
   actionPending,
+  phase,
   onApprove,
   onSubmit,
   submitLabel,
+  successVerb,
   error,
+  success,
+  successUnit,
 }: {
   id: string;
   label: string;
@@ -32,12 +38,18 @@ export function AmountAction({
   allowance?: bigint;
   approvePending?: boolean;
   actionPending?: boolean;
+  phase?: ActionPhase | null;
   onApprove?: (amount: bigint) => void;
   onSubmit: (amount: bigint) => void;
   submitLabel: string;
+  /** Past-tense verb for the success line, e.g. "Posted" for a button labeled "Post collateral". Defaults to submitLabel if omitted. */
+  successVerb?: string;
   error?: string | null;
+  success?: Hex | null;
+  successUnit?: string;
 }) {
   const [value, setValue] = useState('');
+  const [lastAmount, setLastAmount] = useState<bigint | null>(null);
 
   const parsed = useMemo(() => {
     if (!value.trim()) return null;
@@ -88,23 +100,28 @@ export function AmountAction({
             disabled={disabled || busy || parsed === null}
             onClick={() => parsed !== null && onApprove?.(parsed)}
           >
-            {approvePending ? 'Approving…' : 'Approve'}
+            {approvePending ? (phase === 'signing' ? 'Confirm in wallet…' : 'Approving…') : 'Approve'}
           </Button>
         ) : (
           <Button
             disabled={disabled || busy || invalid}
             onClick={() => {
               if (parsed === null) return;
+              setLastAmount(parsed);
               onSubmit(parsed);
               setValue('');
             }}
           >
-            {actionPending ? 'Confirming…' : submitLabel}
+            {actionPending ? (phase === 'signing' ? 'Confirm in wallet…' : 'Submitting…') : submitLabel}
           </Button>
         )}
       </div>
       {exceedsMax && <p className="amount-action__status">More than is available.</p>}
-      {error && <p className="amount-action__status">{error}</p>}
+      <TxStatus
+        error={error}
+        success={success}
+        successLabel={lastAmount !== null ? `${successVerb ?? submitLabel} ${formatUnits(lastAmount, 18)} ${successUnit ?? unit}` : undefined}
+      />
     </div>
   );
 }

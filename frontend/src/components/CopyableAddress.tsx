@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { shortAddress } from '../chain';
+import { explorerAddressUrl, shortAddress } from '../chain';
 
 /**
- * Console-rail addresses aren't links (unlike the record number and
- * ledger tx hashes, which already navigate to the explorer), they're
- * supporting registry metadata, so the real interaction here is copying
- * the full address rather than leaving the page. Crisp feedback: the
- * label swaps to "Copied" briefly, then reverts, no toast, no modal.
+ * The primary interaction stays copying the full address, not leaving the
+ * page, crisp feedback: the label swaps to "Copied" briefly, then reverts,
+ * no toast, no modal. A small explorer link sits alongside it, real on-
+ * chain proof one click away for a judge, without turning the whole row
+ * into a navigation link (which would fight the copy interaction).
  */
 export function CopyableAddress({ label, address }: { label: string; address: string }) {
   const [copied, setCopied] = useState(false);
@@ -26,9 +26,14 @@ export function CopyableAddress({ label, address }: { label: string; address: st
   }
 
   return (
-    <button type="button" className="rail-address" onClick={() => void handleCopy()}>
-      <span className="rail-address__label">{label}</span>
-      <span className="rail-address__value mono">{copied ? 'Copied' : shortAddress(address)}</span>
-    </button>
+    <span className="rail-address">
+      <button type="button" className="rail-address__copy" onClick={() => void handleCopy()}>
+        <span className="rail-address__label">{label}</span>
+        <span className="rail-address__value mono">{copied ? 'Copied' : shortAddress(address)}</span>
+      </button>
+      <a className="rail-address__explorer" href={explorerAddressUrl(address as `0x${string}`)} target="_blank" rel="noreferrer" aria-label={`View ${label} on Monad testnet explorer`}>
+        ↗
+      </a>
+    </span>
   );
 }

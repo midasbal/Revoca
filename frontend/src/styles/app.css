@@ -273,10 +273,19 @@ button {
 }
 
 .rail-address {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.rail-address__copy {
   appearance: none;
   border: none;
   background: none;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: var(--space-1) 0;
   display: flex;
   align-items: baseline;
@@ -286,19 +295,27 @@ button {
   color: inherit;
   font: inherit;
   cursor: pointer;
-  border-bottom: 1px solid var(--rule);
-  transition:
-    color 160ms var(--ease-confident),
-    border-color 160ms var(--ease-confident);
+  transition: color 160ms var(--ease-confident);
 }
 
-.rail-address:hover {
+.rail-address__copy:hover {
   color: var(--accent);
-  border-bottom-color: var(--accent);
 }
 
-.rail-address:active {
+.rail-address__copy:active {
   transform: scale(0.99);
+}
+
+.rail-address__explorer {
+  align-self: center;
+  color: var(--ink-faint);
+  text-decoration: none;
+  font-size: 0.75rem;
+  transition: color 160ms var(--ease-confident);
+}
+
+.rail-address__explorer:hover {
+  color: var(--accent);
 }
 
 .rail-address__label {
@@ -1992,6 +2009,19 @@ button {
   margin: var(--space-2) 0 0;
   font-size: var(--text-xs);
   color: var(--struck);
+}
+
+.amount-action__status--error {
+  color: var(--struck);
+}
+
+.amount-action__status--success {
+  color: var(--ink-soft);
+}
+
+.amount-action__status--success a {
+  color: inherit;
+  text-decoration: underline;
 }
 
 /* -------------------------------------------------------------------- */
