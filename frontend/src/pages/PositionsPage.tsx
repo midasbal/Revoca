@@ -22,6 +22,15 @@ export default function PositionsPage() {
   const valid = registry.entries.filter((e) => positionStatus(e).phase === 'valid').length;
   const struck = registry.entries.length - valid;
 
+  // Struck/resolved positions are the strongest evidence of the compliance
+  // gate actually working, surface them first rather than let them sit
+  // buried mid-scan behind ordinary valid ones.
+  const orderedEntries = [...registry.entries].sort((a, b) => {
+    const aStruck = positionStatus(a).phase === 'struck';
+    const bStruck = positionStatus(b).phase === 'struck';
+    return aStruck === bStruck ? 0 : aStruck ? -1 : 1;
+  });
+
   return (
     <div className="page-wrap">
       <div className="registry-head">
@@ -57,11 +66,14 @@ export default function PositionsPage() {
         </p>
       ) : (
         <ol className="registry-list">
-          {registry.entries.map((entry) => {
+          {orderedEntries.map((entry) => {
             const status = positionStatus(entry);
             return (
               <li key={entry.address}>
-                <Link to={`/positions/${entry.address}`} className="registry-row">
+                <Link
+                  to={`/positions/${entry.address}`}
+                  className={`registry-row${status.phase === 'struck' ? ' registry-row--struck' : ''}`}
+                >
                   <span className="registry-row__ring" aria-hidden="true">
                     <RingMark phase={status.phase} prefersReduced={prefersReduced} onStrikeComplete={NOOP} />
                   </span>

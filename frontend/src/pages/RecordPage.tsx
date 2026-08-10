@@ -188,6 +188,13 @@ export default function RecordPage() {
             </strong>
           </p>
 
+          {struck && (
+            <p className="record__framing">
+              This standing was revoked and safely unwound. Every step in the ledger below is a real on-chain
+              transaction, verify each on the explorer.
+            </p>
+          )}
+
           {position.status === 'loading' && <p className="notice">Reading live position&hellip;</p>}
           {position.status === 'error' && <p className="notice">Could not read the chain: {position.message}</p>}
 

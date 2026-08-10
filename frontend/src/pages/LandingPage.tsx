@@ -7,6 +7,7 @@ import { Reveal } from '../components/landing/Reveal';
 import { Keyword } from '../components/landing/Keyword';
 import { Button } from '../components/ui/Button';
 import { shortAddress } from '../chain';
+import { DEMO_BORROWER } from '../deployment';
 
 /** Cleanverse's on-chain compliance validator on Monad testnet, read live behind Revoca's compliance gate, see docs/ARCHITECTURE.md. */
 const VALIDATOR_ADDRESS = '0xaC7e5179C2C7f03f209136886c172eb34F161792';
@@ -17,6 +18,16 @@ export default function LandingPage() {
   return (
     <>
       <Hero />
+
+      <div className="narrative" style={{ paddingTop: 'var(--space-6)' }}>
+        <Link to={`/positions/${DEMO_BORROWER}`} className="evidence-callout">
+          <p className="evidence-callout__label">A real revocation, unwound on chain</p>
+          <p className="evidence-callout__body">
+            See a struck standing and its full unwind ledger, every step a real Monad testnet transaction.{' '}
+            <span className="evidence-callout__arrow">View the record &rarr;</span>
+          </p>
+        </Link>
+      </div>
 
       <div id="narrative" className="narrative" ref={narrativeRef}>
         <ScrollProgress target={narrativeRef} />
@@ -135,6 +146,9 @@ export default function LandingPage() {
             <div className="narrative-close__actions">
               <Link to="/lend">
                 <Button>Take up a standing</Button>
+              </Link>
+              <Link to={`/positions/${DEMO_BORROWER}`}>
+                <Button variant="ghost">See a real revocation and unwind &rarr;</Button>
               </Link>
             </div>
             <p className="narrative-close__footnote mono">Live on Monad testnet.</p>

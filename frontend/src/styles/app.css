@@ -2321,6 +2321,68 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
+/* Evidence callout: a real, completed revocation is our strongest        */
+/* feature but a visitor can't stumble on its URL, so this is the same    */
+/* struck-wash treatment as docs-callout, pointing at that live record    */
+/* from the surfaces a judge actually lands on.                           */
+/* -------------------------------------------------------------------- */
+
+.evidence-callout {
+  display: block;
+  padding: var(--space-4) var(--space-5);
+  background: var(--struck-wash);
+  border: 1px solid var(--rule-strong);
+  border-left: 3px solid var(--struck);
+  border-radius: var(--radius-card);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    background-color var(--duration-fast) var(--ease-confident),
+    border-color var(--duration-fast) var(--ease-confident);
+}
+
+.evidence-callout:hover {
+  border-color: var(--struck);
+}
+
+.evidence-callout__label {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--struck);
+}
+
+.evidence-callout__body {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.evidence-callout__arrow {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.registry-row--struck {
+  background: var(--struck-wash);
+  border-color: var(--struck);
+}
+
+.registry-row--struck:hover {
+  border-color: var(--struck);
+}
+
+.record__framing {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+/* -------------------------------------------------------------------- */
 /* Roadmap: phased, grounded items, each its own card, real width used   */
 /* for a two-column grid rather than a plain bullet list.                */
 /* -------------------------------------------------------------------- */
