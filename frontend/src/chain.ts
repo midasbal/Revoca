@@ -129,25 +129,38 @@ export function formatBps(bps: number): string {
 /** Monad's public testnet RPC caps eth_getLogs at 100 blocks per request (confirmed empirically this session, see docs/OPEN_QUESTIONS.md), well under most providers' defaults, so every log read here is chunked rather than a single unbounded request. */
 const LOG_CHUNK_BLOCKS = 90n;
 
+/**
+ * The same RPC's real sustainable throughput is lower than its documented
+ * ~15 requests/sec (confirmed empirically this session): even 2 concurrent
+ * eth_getLogs calls draw 429s, which viem's default retry then backs off
+ * on, making a "parallel" scan slower than a plain sequential one. 1 keeps
+ * this a no-risk, purely additive change, see fetchLedgerRange for how the
+ * actual speedup instead comes from asking for half as many blocks.
+ */
+const LOG_FETCH_CONCURRENCY = 1;
+
 export interface ChunkedLogsOptions {
-  address: Address;
+  address: Address | Address[];
   events: readonly unknown[];
   fromBlock: bigint;
   toBlock: bigint;
 }
 
 export async function fetchLogsChunked({ address, events, fromBlock, toBlock }: ChunkedLogsOptions) {
-  const results: Awaited<ReturnType<typeof publicClient.getLogs>> = [];
+  const ranges: Array<{ start: bigint; end: bigint }> = [];
   for (let start = fromBlock; start <= toBlock; start += LOG_CHUNK_BLOCKS) {
     const end = start + LOG_CHUNK_BLOCKS - 1n > toBlock ? toBlock : start + LOG_CHUNK_BLOCKS - 1n;
-    // eslint-disable-next-line no-await-in-loop -- chunks must stay within the RPC's per-request block-range cap, sequential by design
-    const chunk = await publicClient.getLogs({
-      address,
-      events: events as never,
-      fromBlock: start,
-      toBlock: end,
-    });
-    results.push(...chunk);
+    ranges.push({ start, end });
+  }
+
+  const results: Awaited<ReturnType<typeof publicClient.getLogs>> = [];
+  for (let i = 0; i < ranges.length; i += LOG_FETCH_CONCURRENCY) {
+    const batch = ranges.slice(i, i + LOG_FETCH_CONCURRENCY);
+    // eslint-disable-next-line no-await-in-loop -- batches run sequentially, requests within a batch run in parallel, bounded so aggregate throughput stays under the RPC's rate cap
+    const chunks = await Promise.all(
+      batch.map(({ start, end }) => publicClient.getLogs({ address, events: events as never, fromBlock: start, toBlock: end })),
+    );
+    for (const chunk of chunks) results.push(...chunk);
   }
   return results;
 }

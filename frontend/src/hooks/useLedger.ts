@@ -70,12 +70,18 @@ function describe(log: DecodedLog): { headline: string; detail: string } {
 async function fetchLedgerRange(address: Address, fromBlock: bigint, toBlock: bigint): Promise<LedgerEntry[]> {
   if (fromBlock > toBlock) return [];
 
-  const [poolLogs, guardianLogs] = await Promise.all([
-    fetchLogsChunked({ address: DEPLOYMENT.pool, events: POOL_ABI.filter((item) => item.type === 'event'), fromBlock, toBlock }),
-    fetchLogsChunked({ address: DEPLOYMENT.guardian, events: GUARDIAN_ABI.filter((item) => item.type === 'event'), fromBlock, toBlock }),
-  ]);
+  // One chunked scan across both contracts, not two: the RPC's 100-block
+  // cap is per request regardless of how many addresses or event
+  // signatures are in it, so asking for pool and guardian logs separately
+  // was paying for the same block range twice.
+  const logs = await fetchLogsChunked({
+    address: [DEPLOYMENT.pool, DEPLOYMENT.guardian],
+    events: [...POOL_ABI, ...GUARDIAN_ABI].filter((item) => item.type === 'event'),
+    fromBlock,
+    toBlock,
+  });
 
-  const all = [...poolLogs, ...guardianLogs] as DecodedLog[];
+  const all = logs as DecodedLog[];
   const forBorrower = all.filter((log) => {
     const borrower = (log.args as Record<string, unknown> | undefined)?.borrower;
     return typeof borrower === 'string' && borrower.toLowerCase() === address.toLowerCase();
@@ -120,8 +126,14 @@ const POLL_INTERVAL_MS = 6000;
  * on every load isn't practical. Every address this app knows about today
  * has a known origin (see deployment.ts), a future positions registry
  * will need to resolve one per position rather than assume it.
+ *
+ * `maxBlock`, when given, caps the other end too: instead of scanning
+ * forward to the live chain head every load, the scan stops once it
+ * passes maxBlock. Only meant for a position that is verifiably closed
+ * (see DEMO_LAST_EVENT_BLOCK in deployment.ts), an open position must
+ * still poll to the real head or a new event would never be seen.
  */
-export function useLedger(address: Address, originBlock: bigint): { entries: LedgerEntry[]; loading: boolean } {
+export function useLedger(address: Address, originBlock: bigint, maxBlock?: bigint): { entries: LedgerEntry[]; loading: boolean } {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const generation = useRef(0);
@@ -147,9 +159,17 @@ export function useLedger(address: Address, originBlock: bigint): { entries: Led
       // range, real duplicate ledger rows confirmed live this session,
       // not a hypothetical.
       if (inFlight) return;
+      // Nothing left to learn once a bounded scan has passed maxBlock,
+      // skip the RPC round trip entirely rather than re-fetching an
+      // empty range forever.
+      if (maxBlock !== undefined && scannedThrough.current >= maxBlock) {
+        setLoading(false);
+        return;
+      }
       inFlight = true;
       try {
-        const toBlock = await publicClient.getBlockNumber();
+        const headBlock = await publicClient.getBlockNumber();
+        const toBlock = maxBlock !== undefined && maxBlock < headBlock ? maxBlock : headBlock;
         const fromBlock = scannedThrough.current + 1n;
         const fresh = await fetchLedgerRange(address, fromBlock, toBlock);
         if (cancelled || generation.current !== myGeneration) return;
@@ -175,7 +195,7 @@ export function useLedger(address: Address, originBlock: bigint): { entries: Led
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [address, originBlock]);
+  }, [address, originBlock, maxBlock]);
 
   return { entries, loading };
 }

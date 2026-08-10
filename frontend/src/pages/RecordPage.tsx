@@ -12,7 +12,7 @@ import { useLedger } from '../hooks/useLedger';
 import { useStrikePhase } from '../hooks/useStrikePhase';
 import { usePrevious } from '../hooks/usePrevious';
 import { useClock } from '../hooks/useClock';
-import { DEMO_BORROWER, DEMO_ORIGIN_BLOCK } from '../deployment';
+import { DEMO_BORROWER, DEMO_ORIGIN_BLOCK, DEMO_LAST_EVENT_BLOCK } from '../deployment';
 import { GuardianReason, GuardianState, explorerAddressUrl, formatAmount, formatBps, shortAddress } from '../chain';
 import type { Address } from 'viem';
 
@@ -34,7 +34,11 @@ export default function RecordPage() {
   const borrower = (params.address as Address | undefined) ?? DEMO_BORROWER;
 
   const position = usePosition(borrower);
-  const { entries } = useLedger(borrower, DEMO_ORIGIN_BLOCK);
+  // Only the demo borrower's scan is bounded, its lifecycle is verifiably
+  // closed (see DEMO_LAST_EVENT_BLOCK). Any other address still polls to
+  // the live chain head, an open position's next event could land anytime.
+  const isDemoBorrower = borrower.toLowerCase() === DEMO_BORROWER.toLowerCase();
+  const { entries, loading: ledgerLoading } = useLedger(borrower, DEMO_ORIGIN_BLOCK, isDemoBorrower ? DEMO_LAST_EVENT_BLOCK : undefined);
   const now = useClock();
 
   // The real sequence behind each action is several sequentially-confirmed
@@ -234,7 +238,7 @@ export default function RecordPage() {
           <div className="ruled">
             <span className="eyebrow ruled__label">Ledger</span>
           </div>
-          <Ledger entries={entries} nowSeconds={now} />
+          <Ledger entries={entries} nowSeconds={now} loading={ledgerLoading} />
 
           <div className="action">
             {readyToStrike && (

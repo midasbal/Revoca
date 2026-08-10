@@ -36,3 +36,19 @@ export const DEMO_BORROWER = '0xd4D9F9787557Df143e962F1A42B2adA38687355A' as con
  * running backend/scripts/reset-demo-position*.ts again.
  */
 export const DEMO_ORIGIN_BLOCK = 52354662n;
+
+/**
+ * The last real block this demo lifecycle produced an event on (confirmed
+ * by directly scanning the chain: the final UnwindCompleted cluster lands
+ * at block 52366961, nothing for this borrower since). The record page
+ * uses this to cap the ledger's scan instead of sweeping forward to the
+ * live chain head on every load, this borrower's guardian state is
+ * RESOLVED and non-compliant, a closed record per RecordPage's own copy,
+ * so there is nothing further to wait for. That tail (tens of thousands of
+ * empty blocks by the time a judge visits, since Monad testnet produces
+ * blocks fast) is what was making the ledger take ~45s to populate. A
+ * modest buffer past the real last event, not a tight cut right at it, in
+ * case this demo is ever nudged forward slightly. Update alongside
+ * DEMO_ORIGIN_BLOCK after a rebuild.
+ */
+export const DEMO_LAST_EVENT_BLOCK = 52367461n;

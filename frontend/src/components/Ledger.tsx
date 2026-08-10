@@ -11,9 +11,9 @@ function relativeTime(timestamp: bigint | null, nowSeconds: number): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
-export function Ledger({ entries, nowSeconds }: { entries: LedgerEntry[]; nowSeconds: number }) {
+export function Ledger({ entries, nowSeconds, loading }: { entries: LedgerEntry[]; nowSeconds: number; loading?: boolean }) {
   if (entries.length === 0) {
-    return <p className="ledger__empty">No events recorded yet for this position.</p>;
+    return <p className="ledger__empty">{loading ? 'Reading the ledger…' : 'No events recorded yet for this position.'}</p>;
   }
 
   return (
