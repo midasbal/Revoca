@@ -11,9 +11,29 @@ function relativeTime(timestamp: bigint | null, nowSeconds: number): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
-export function Ledger({ entries, nowSeconds, loading }: { entries: LedgerEntry[]; nowSeconds: number; loading?: boolean }) {
+export function Ledger({
+  entries,
+  nowSeconds,
+  loading,
+  expectEvents,
+}: {
+  entries: LedgerEntry[];
+  nowSeconds: number;
+  loading?: boolean;
+  /** Set only where events are actually known to exist (the demo record's closed lifecycle), so the "worth the wait" framing never gets shown on a position that could legitimately turn out empty. */
+  expectEvents?: boolean;
+}) {
   if (entries.length === 0) {
-    return <p className="ledger__empty">{loading ? 'Reading the ledger…' : 'No events recorded yet for this position.'}</p>;
+    if (!loading) {
+      return <p className="ledger__empty">No events recorded yet for this position.</p>;
+    }
+    return (
+      <p className="ledger__empty">
+        {expectEvents
+          ? "Reading the ledger from Monad's public testnet RPC. It's congested right now, so give it up to a minute, the wait is worth it. Every entry that appears is a real on-chain transaction, verifiable on the Monad explorer."
+          : 'Reading the ledger…'}
+      </p>
+    );
   }
 
   return (

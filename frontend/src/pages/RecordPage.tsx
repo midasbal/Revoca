@@ -238,7 +238,7 @@ export default function RecordPage() {
           <div className="ruled">
             <span className="eyebrow ruled__label">Ledger</span>
           </div>
-          <Ledger entries={entries} nowSeconds={now} loading={ledgerLoading} />
+          <Ledger entries={entries} nowSeconds={now} loading={ledgerLoading} expectEvents={isDemoBorrower} />
 
           <div className="action">
             {readyToStrike && (
