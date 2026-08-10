@@ -2383,6 +2383,63 @@ button {
 }
 
 /* -------------------------------------------------------------------- */
+/* Evidence banner: the same "see a real revocation and unwind" pointer  */
+/* as the landing page's callout, but persistent across every other page */
+/* a visitor might land on directly. Slim, dismissible, not the landing  */
+/* page's full treatment, this is a reminder, not a repeat of the pitch. */
+/* -------------------------------------------------------------------- */
+
+.evidence-banner {
+  background: var(--struck-wash);
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.evidence-banner__inner {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: var(--space-3) 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.evidence-banner__text {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.evidence-banner__link {
+  color: var(--struck);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.evidence-banner__link:hover {
+  text-decoration: underline;
+}
+
+.evidence-banner__close {
+  flex: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--ink-faint);
+  font-size: 1.125rem;
+  line-height: 1;
+  padding: var(--space-1);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-confident);
+}
+
+.evidence-banner__close:hover {
+  color: var(--ink);
+}
+
+/* -------------------------------------------------------------------- */
 /* Roadmap: phased, grounded items, each its own card, real width used   */
 /* for a two-column grid rather than a plain bullet list.                */
 /* -------------------------------------------------------------------- */

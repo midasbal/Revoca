@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { Ground } from '../Ground';
 import { Header } from './Header';
 import { Footer } from './Footer';
+import { EvidenceBanner } from './EvidenceBanner';
 import { useBlockHeight } from '../../hooks/useBlockHeight';
 
 /** The root layout every route renders into: the ground, the header/footer frame, and the page itself in between. */
@@ -13,6 +14,7 @@ export function Shell() {
       <Ground pulseKey={blockNumber !== null ? blockNumber.toString() : null} />
       <div className="shell">
         <Header blockNumber={blockNumber} />
+        <EvidenceBanner />
         <main className="shell__main">
           <Outlet />
         </main>
