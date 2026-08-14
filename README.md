@@ -1,3 +1,5 @@
+# Cleanverse Hackathon: 7th Place: https://cleanverse.com/hackathon-results
+
 # Revoca
 
 Most compliance-aware lending gates entry once, at the moment a loan opens,
